@@ -1,0 +1,314 @@
+import React, { useState } from 'react';
+import { Routes, Route, Navigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Menu } from 'lucide-react';
+import Sidebar from '../shared/Sidebar';
+import Analytics from './tabs/Analytics';
+import EnhancedAnalytics from './tabs/EnhancedAnalytics';
+import AdvancedAnalytics from './tabs/AdvancedAnalytics';
+import Reports from './tabs/Reports';
+import MenuManager from './tabs/MenuManager';
+import OrderManager from './tabs/OrderManager';
+import TableManager from './tabs/TableManager';
+import ReservationManager from './tabs/ReservationManager';
+import BillingManager from './tabs/BillingManager';
+import CouponManager from './tabs/CouponManager';
+import ReviewManager from './tabs/ReviewManager';
+import QRCodeGenerator from './tabs/QRCodeGenerator';
+import EmployeeScheduling from './tabs/EmployeeScheduling';
+import TabPlaceholder from './tabs/TabPlaceholder';
+import {
+  LayoutGrid,
+  ShoppingCart,
+  Receipt,
+  QrCode,
+  FileText,
+  TrendingUp,
+  Ticket,
+  Star,
+  Calendar,
+  Users,
+  BarChart3
+} from 'lucide-react';
+
+/**
+ * Manager Dashboard Component
+ * Main dashboard with sidebar navigation and tab-based content
+ * @component
+ */
+const Dashboard = () => {
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
+  const toggleSidebar = () => {
+    setIsSidebarOpen(!isSidebarOpen);
+  };
+
+  // Animation variants for page transitions
+  const pageVariants = {
+    initial: {
+      opacity: 0,
+      x: 50
+    },
+    animate: {
+      opacity: 1,
+      x: 0,
+      transition: {
+        duration: 0.3,
+        ease: 'easeOut'
+      }
+    },
+    exit: {
+      opacity: 0,
+      x: -50,
+      transition: {
+        duration: 0.2,
+        ease: 'easeIn'
+      }
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+      <div className="flex h-screen overflow-hidden">
+        {/* Sidebar */}
+        <Sidebar isOpen={isSidebarOpen} toggleSidebar={toggleSidebar} />
+
+        {/* Main Content */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {/* Mobile Header */}
+          <header className="lg:hidden bg-slate-900/95 backdrop-blur-xl border-b border-slate-700 p-4">
+            <div className="flex items-center gap-4">
+              <button
+                onClick={toggleSidebar}
+                className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+              >
+                <Menu className="text-white" size={24} />
+              </button>
+              <h1 className="text-xl font-bold text-white">Manager Dashboard</h1>
+            </div>
+          </header>
+
+          {/* Content Area */}
+          <main className="flex-1 overflow-y-auto p-6 lg:p-8">
+            <AnimatePresence mode="wait">
+              <Routes>
+                {/* Analytics Tab */}
+                <Route
+                  path="/"
+                  element={
+                    <motion.div
+                      key="analytics"
+                      variants={pageVariants}
+                      initial="initial"
+                      animate="animate"
+                      exit="exit"
+                    >
+                      <Analytics />
+                    </motion.div>
+                  }
+                />
+
+                {/* Menu Tab */}
+                <Route
+                  path="/menu"
+                  element={
+                    <motion.div
+                      key="menu"
+                      variants={pageVariants}
+                      initial="initial"
+                      animate="animate"
+                      exit="exit"
+                    >
+                      <MenuManager />
+                    </motion.div>
+                  }
+                />
+
+                {/* Tables Tab */}
+                <Route
+                  path="/tables"
+                  element={
+                    <motion.div
+                      key="tables"
+                      variants={pageVariants}
+                      initial="initial"
+                      animate="animate"
+                      exit="exit"
+                    >
+                      <TableManager />
+                    </motion.div>
+                  }
+                />
+
+                {/* Orders Tab */}
+                <Route
+                  path="/orders"
+                  element={
+                    <motion.div
+                      key="orders"
+                      variants={pageVariants}
+                      initial="initial"
+                      animate="animate"
+                      exit="exit"
+                    >
+                      <OrderManager />
+                    </motion.div>
+                  }
+                />
+
+                {/* Billing Tab */}
+                <Route
+                  path="/billing"
+                  element={
+                    <motion.div
+                      key="billing"
+                      variants={pageVariants}
+                      initial="initial"
+                      animate="animate"
+                      exit="exit"
+                    >
+                      <BillingManager />
+                    </motion.div>
+                  }
+                />
+
+                {/* QR Code Generator Tab */}
+                <Route
+                  path="/qr-codes"
+                  element={
+                    <motion.div
+                      key="qr-codes"
+                      variants={pageVariants}
+                      initial="initial"
+                      animate="animate"
+                      exit="exit"
+                    >
+                      <QRCodeGenerator />
+                    </motion.div>
+                  }
+                />
+
+                {/* Reports Tab */}
+                <Route
+                  path="/reports"
+                  element={
+                    <motion.div
+                      key="reports"
+                      variants={pageVariants}
+                      initial="initial"
+                      animate="animate"
+                      exit="exit"
+                    >
+                      <Reports />
+                    </motion.div>
+                  }
+                />
+
+                {/* Advanced Analytics Tab */}
+                <Route
+                  path="/advanced-analytics"
+                  element={
+                    <motion.div
+                      key="advanced-analytics"
+                      variants={pageVariants}
+                      initial="initial"
+                      animate="animate"
+                      exit="exit"
+                    >
+                      <AdvancedAnalytics />
+                    </motion.div>
+                  }
+                />
+
+                {/* Coupons Tab */}
+                <Route
+                  path="/coupons"
+                  element={
+                    <motion.div
+                      key="coupons"
+                      variants={pageVariants}
+                      initial="initial"
+                      animate="animate"
+                      exit="exit"
+                    >
+                      <CouponManager />
+                    </motion.div>
+                  }
+                />
+
+                {/* Reviews Tab */}
+                <Route
+                  path="/reviews"
+                  element={
+                    <motion.div
+                      key="reviews"
+                      variants={pageVariants}
+                      initial="initial"
+                      animate="animate"
+                      exit="exit"
+                    >
+                      <ReviewManager />
+                    </motion.div>
+                  }
+                />
+
+                {/* Reservations Tab */}
+                <Route
+                  path="/reservations"
+                  element={
+                    <motion.div
+                      key="reservations"
+                      variants={pageVariants}
+                      initial="initial"
+                      animate="animate"
+                      exit="exit"
+                    >
+                      <ReservationManager />
+                    </motion.div>
+                  }
+                />
+
+                {/* Employee Scheduling Tab */}
+                <Route
+                  path="/scheduling"
+                  element={
+                    <motion.div
+                      key="scheduling"
+                      variants={pageVariants}
+                      initial="initial"
+                      animate="animate"
+                      exit="exit"
+                    >
+                      <EmployeeScheduling />
+                    </motion.div>
+                  }
+                />
+
+                {/* Enhanced Analytics Route */}
+                <Route
+                  path="/enhanced-analytics"
+                  element={
+                    <motion.div
+                      key="enhanced-analytics"
+                      variants={pageVariants}
+                      initial="initial"
+                      animate="animate"
+                      exit="exit"
+                    >
+                      <EnhancedAnalytics />
+                    </motion.div>
+                  }
+                />
+
+                {/* Catch all - redirect to analytics */}
+                <Route path="*" element={<Navigate to="/manager" replace />} />
+              </Routes>
+            </AnimatePresence>
+          </main>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default Dashboard;
