@@ -30,6 +30,7 @@ const BillingManager = () => {
   const [loading, setLoading] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [selectedBill, setSelectedBill] = useState(null);
+  const [viewingBillDetails, setViewingBillDetails] = useState(null); // For detailed bill view
   const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [toast, setToast] = useState({ show: false, message: '', type: '' });
@@ -67,14 +68,18 @@ const BillingManager = () => {
 
   const fetchOrders = async () => {
     try {
-      const data = await ordersAPI.getAll({ status: 'completed' });
-      // Filter orders that don't have bills
+      // Fetch orders with status=completed or status=ready for billing
+      const data = await ordersAPI.getAll();
+      // Filter orders that are completed/ready and don't have bills yet
       const ordersWithoutBills = data.filter(
-        order => !bills.some(bill => bill.order_id === order.id)
+        order => (order.status === 'completed' || order.status === 'ready' || order.status === 'served') && 
+        !bills.some(bill => bill.order_id === order.id)
       );
       setOrders(ordersWithoutBills);
+      console.log('Orders available for billing:', ordersWithoutBills.length);
     } catch (error) {
       console.error('Error fetching orders:', error);
+      showToast('Failed to fetch orders', 'error');
     }
   };
 
@@ -172,57 +177,141 @@ const BillingManager = () => {
   const generatePDF = (bill) => {
     const doc = new jsPDF();
     
-    // Header
-    doc.setFontSize(20);
+    // Header with restaurant name
+    doc.setFontSize(22);
+    doc.setFont(undefined, 'bold');
     doc.text('Restaurant Receipt', 105, 20, { align: 'center' });
     
-    doc.setFontSize(12);
-    doc.text(`Bill #${bill.id}`, 20, 40);
-    doc.text(`Date: ${new Date(bill.created_at).toLocaleDateString()}`, 20, 50);
+    // Bill info
+    doc.setFontSize(10);
+    doc.setFont(undefined, 'normal');
+    doc.text(`Bill #${bill.id}`, 20, 35);
+    doc.text(`Date: ${new Date(bill.created_at).toLocaleDateString()} ${new Date(bill.created_at).toLocaleTimeString()}`, 20, 42);
+    if (bill.order?.table?.table_number) {
+      doc.text(`Table: ${bill.order.table.table_number}`, 20, 49);
+    }
     
-    // Bill details
-    doc.text('Items:', 20, 70);
-    let yPos = 80;
+    // Separator line
+    doc.setLineWidth(0.5);
+    doc.line(20, 55, 190, 55);
+    
+    // Items header
+    doc.setFontSize(11);
+    doc.setFont(undefined, 'bold');
+    doc.text('Items', 20, 65);
+    doc.text('Qty', 130, 65);
+    doc.text('Price', 155, 65);
+    doc.text('Total', 180, 65, { align: 'right' });
+    
+    doc.setLineWidth(0.3);
+    doc.line(20, 68, 190, 68);
+    
+    // Items list
+    let yPos = 76;
+    doc.setFont(undefined, 'normal');
+    doc.setFontSize(10);
+    
+    if (bill.order && bill.order.order_items && bill.order.order_items.length > 0) {
+      bill.order.order_items.forEach((item) => {
+        const itemName = item.menu_item?.name || 'Unknown Item';
+        const quantity = item.quantity || 1;
+        const price = item.price || 0;
+        const total = quantity * price;
+        
+        // Wrap item name if too long
+        const maxWidth = 100;
+        const nameLines = doc.splitTextToSize(itemName, maxWidth);
+        
+        doc.text(nameLines[0], 20, yPos);
+        doc.text(quantity.toString(), 130, yPos);
+        doc.text(`₹${price.toFixed(2)}`, 155, yPos);
+        doc.text(`₹${total.toFixed(2)}`, 190, yPos, { align: 'right' });
+        
+        yPos += 8;
+        
+        // Add page if needed
+        if (yPos > 250) {
+          doc.addPage();
+          yPos = 20;
+        }
+      });
+    } else {
+      doc.text('No items available', 20, yPos);
+      yPos += 8;
+    }
+    
+    // Separator before totals
+    yPos += 5;
+    doc.setLineWidth(0.3);
+    doc.line(20, yPos, 190, yPos);
+    yPos += 10;
     
     // Subtotal
-    doc.text(`Subtotal:`, 20, yPos);
-    doc.text(`₹${bill.subtotal.toFixed(2)}`, 150, yPos);
-    yPos += 10;
+    doc.setFont(undefined, 'normal');
+    doc.text('Subtotal:', 130, yPos);
+    doc.text(`₹${bill.subtotal.toFixed(2)}`, 190, yPos, { align: 'right' });
+    yPos += 8;
     
     // Tax
-    doc.text(`Tax (${bill.tax_percentage}%):`, 20, yPos);
-    doc.text(`₹${bill.tax.toFixed(2)}`, 150, yPos);
-    yPos += 10;
+    doc.text(`Tax (${bill.tax_percentage}%):`, 130, yPos);
+    doc.text(`₹${bill.tax.toFixed(2)}`, 190, yPos, { align: 'right' });
+    yPos += 8;
     
     // Discount
     if (bill.discount > 0) {
-      doc.text(`Discount:`, 20, yPos);
-      doc.text(`-₹${bill.discount.toFixed(2)}`, 150, yPos);
-      yPos += 10;
+      doc.text('Discount:', 130, yPos);
+      doc.text(`-₹${bill.discount.toFixed(2)}`, 190, yPos, { align: 'right' });
+      yPos += 8;
     }
     
-    // Total
-    doc.setFontSize(14);
-    doc.text(`Total:`, 20, yPos + 10);
-    doc.text(`₹${bill.total.toFixed(2)}`, 150, yPos + 10);
+    // Total with emphasis
+    yPos += 3;
+    doc.setLineWidth(0.5);
+    doc.line(130, yPos, 190, yPos);
+    yPos += 8;
+    
+    doc.setFontSize(13);
+    doc.setFont(undefined, 'bold');
+    doc.text('Total:', 130, yPos);
+    doc.text(`₹${bill.total.toFixed(2)}`, 190, yPos, { align: 'right' });
+    yPos += 10;
     
     // Split info
     if (bill.split_count > 1) {
-      doc.setFontSize(12);
-      doc.text(`Split among ${bill.split_count} people:`, 20, yPos + 25);
-      doc.text(`₹${bill.amount_per_person.toFixed(2)} per person`, 20, yPos + 35);
+      doc.setFontSize(10);
+      doc.setFont(undefined, 'normal');
+      doc.text(`Split among ${bill.split_count} people: ₹${(bill.total / bill.split_count).toFixed(2)} per person`, 130, yPos);
+      yPos += 8;
     }
     
-    // Payment method
+    // Payment info
     if (bill.payment_method) {
-      doc.text(`Payment Method: ${bill.payment_method.toUpperCase()}`, 20, yPos + 50);
+      doc.setFont(undefined, 'normal');
+      doc.text(`Payment: ${bill.payment_method.toUpperCase()}`, 130, yPos);
+      yPos += 5;
+    }
+    
+    doc.text(`Status: ${bill.payment_status.toUpperCase()}`, 130, yPos);
+    
+    // Notes
+    if (bill.notes) {
+      yPos += 10;
+      doc.setFontSize(9);
+      doc.text('Notes:', 20, yPos);
+      yPos += 5;
+      const notesLines = doc.splitTextToSize(bill.notes, 170);
+      doc.text(notesLines, 20, yPos);
     }
     
     // Footer
-    doc.setFontSize(10);
+    doc.setFontSize(11);
+    doc.setFont(undefined, 'bold');
     doc.text('Thank you for dining with us!', 105, 280, { align: 'center' });
+    doc.setFontSize(8);
+    doc.setFont(undefined, 'normal');
+    doc.text('Visit us again soon!', 105, 287, { align: 'center' });
     
-    doc.save(`receipt_${bill.id}.pdf`);
+    doc.save(`receipt_bill_${bill.id}.pdf`);
   };
 
   // Statistics
@@ -236,7 +325,7 @@ const BillingManager = () => {
   };
 
   return (
-    <div className="p-6">
+    <div className="min-h-screen bg-slate-50 p-6">
       {/* Toast Notification */}
       <AnimatePresence>
         {toast.show && (
@@ -380,7 +469,14 @@ const BillingManager = () => {
                 </div>
 
                 {/* Actions */}
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap">
+                  <button
+                    onClick={() => setViewingBillDetails(bill)}
+                    className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center gap-2"
+                  >
+                    <Receipt size={18} />
+                    View Details
+                  </button>
                   {bill.payment_status === 'pending' && (
                     <>
                       <button
@@ -396,7 +492,7 @@ const BillingManager = () => {
                       </button>
                       <button
                         onClick={() => setSelectedBill(bill)}
-                        className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center gap-2"
+                        className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors flex items-center gap-2"
                       >
                         <Calculator size={18} />
                         Manage
@@ -451,18 +547,25 @@ const BillingManager = () => {
                     <label className="block text-sm font-medium text-slate-700 mb-2">
                       Select Order <span className="text-red-500">*</span>
                     </label>
-                    <select
-                      value={billForm.order_id || ''}
-                      onChange={(e) => setBillForm({ ...billForm, order_id: parseInt(e.target.value) })}
-                      className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
-                    >
-                      <option value="">Select an order...</option>
-                      {orders.map((order) => (
-                        <option key={order.id} value={order.id}>
-                          Order #{order.id} - ₹{order.total_amount.toFixed(2)}
-                        </option>
-                      ))}
-                    </select>
+                    {orders.length === 0 ? (
+                      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-yellow-800">
+                        <p className="text-sm font-medium">No orders available for billing</p>
+                        <p className="text-xs mt-1">Make sure orders are marked as 'completed', 'ready', or 'served'</p>
+                      </div>
+                    ) : (
+                      <select
+                        value={billForm.order_id || ''}
+                        onChange={(e) => setBillForm({ ...billForm, order_id: parseInt(e.target.value) })}
+                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                      >
+                        <option value="">Select an order...</option>
+                        {orders.map((order) => (
+                          <option key={order.id} value={order.id}>
+                            Order #{order.id} - Table {order.table?.table_number || 'N/A'} - ₹{(order.total_amount || 0).toFixed(2)} ({order.status})
+                          </option>
+                        ))}
+                      </select>
+                    )}
                   </div>
 
                   <div>
@@ -726,6 +829,208 @@ const BillingManager = () => {
                         <span>₹{selectedBill.total.toFixed(2)}</span>
                       </div>
                     </div>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Bill Details View Modal */}
+      <AnimatePresence>
+        {viewingBillDetails && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setViewingBillDetails(null)}
+              className="fixed inset-0 bg-black/50 z-40"
+            />
+
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            >
+              <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+                {/* Header */}
+                <div className="border-b border-slate-200 px-6 py-4 sticky top-0 bg-white z-10">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h2 className="text-2xl font-bold text-slate-800">Bill Details #{viewingBillDetails.id}</h2>
+                      <p className="text-sm text-slate-600 mt-1">
+                        {new Date(viewingBillDetails.created_at).toLocaleDateString()} {new Date(viewingBillDetails.created_at).toLocaleTimeString()}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setViewingBillDetails(null)}
+                      className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                    >
+                      <X size={24} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Content */}
+                <div className="p-6 space-y-6">
+                  {/* Order Info */}
+                  <div className="bg-slate-50 rounded-lg p-4">
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+                      <div>
+                        <span className="text-slate-600 block">Bill ID</span>
+                        <span className="font-bold text-lg">#{viewingBillDetails.id}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-600 block">Order ID</span>
+                        <span className="font-bold text-lg">#{viewingBillDetails.order_id}</span>
+                      </div>
+                      {viewingBillDetails.order?.table?.table_number && (
+                        <div>
+                          <span className="text-slate-600 block">Table</span>
+                          <span className="font-bold text-lg">{viewingBillDetails.order.table.table_number}</span>
+                        </div>
+                      )}
+                      <div>
+                        <span className="text-slate-600 block">Status</span>
+                        <span
+                          className={`inline-block px-3 py-1 text-xs font-bold rounded-full ${
+                            viewingBillDetails.payment_status === 'paid'
+                              ? 'bg-green-500 text-white'
+                              : viewingBillDetails.payment_status === 'pending'
+                              ? 'bg-yellow-500 text-white'
+                              : 'bg-red-500 text-white'
+                          }`}
+                        >
+                          {viewingBillDetails.payment_status.toUpperCase()}
+                        </span>
+                      </div>
+                      {viewingBillDetails.payment_method && (
+                        <div>
+                          <span className="text-slate-600 block">Payment Method</span>
+                          <span className="font-bold">{viewingBillDetails.payment_method.toUpperCase()}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Order Items */}
+                  <div>
+                    <h3 className="font-bold text-slate-800 mb-3 flex items-center gap-2">
+                      <Receipt size={20} className="text-orange-500" />
+                      Order Items
+                    </h3>
+                    <div className="border border-slate-200 rounded-lg overflow-hidden">
+                      <table className="w-full">
+                        <thead className="bg-slate-100">
+                          <tr>
+                            <th className="text-left px-4 py-3 text-sm font-semibold text-slate-700">Item</th>
+                            <th className="text-center px-4 py-3 text-sm font-semibold text-slate-700">Qty</th>
+                            <th className="text-right px-4 py-3 text-sm font-semibold text-slate-700">Price</th>
+                            <th className="text-right px-4 py-3 text-sm font-semibold text-slate-700">Total</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200">
+                          {viewingBillDetails.order?.order_items?.length > 0 ? (
+                            viewingBillDetails.order.order_items.map((item, index) => (
+                              <tr key={index} className="hover:bg-slate-50">
+                                <td className="px-4 py-3">
+                                  <div className="font-medium text-slate-800">
+                                    {item.menu_item?.name || 'Unknown Item'}
+                                  </div>
+                                  {item.menu_item?.category && (
+                                    <div className="text-xs text-slate-500">{item.menu_item.category}</div>
+                                  )}
+                                </td>
+                                <td className="px-4 py-3 text-center font-medium">{item.quantity || 1}</td>
+                                <td className="px-4 py-3 text-right">₹{(item.price || 0).toFixed(2)}</td>
+                                <td className="px-4 py-3 text-right font-bold">
+                                  ₹{((item.quantity || 1) * (item.price || 0)).toFixed(2)}
+                                </td>
+                              </tr>
+                            ))
+                          ) : (
+                            <tr>
+                              <td colSpan="4" className="px-4 py-8 text-center text-slate-500">
+                                No items found in this order
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Bill Calculation */}
+                  <div>
+                    <h3 className="font-bold text-slate-800 mb-3 flex items-center gap-2">
+                      <Calculator size={20} className="text-orange-500" />
+                      Bill Summary
+                    </h3>
+                    <div className="bg-slate-50 rounded-lg p-4 space-y-3">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-600">Subtotal</span>
+                        <span className="font-bold">₹{viewingBillDetails.subtotal.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-600">Tax ({viewingBillDetails.tax_percentage}%)</span>
+                        <span className="font-bold">₹{viewingBillDetails.tax.toFixed(2)}</span>
+                      </div>
+                      {viewingBillDetails.discount > 0 && (
+                        <div className="flex justify-between text-sm text-green-600">
+                          <span>Discount</span>
+                          <span className="font-bold">-₹{viewingBillDetails.discount.toFixed(2)}</span>
+                        </div>
+                      )}
+                      <div className="border-t border-slate-300 pt-3 flex justify-between">
+                        <span className="text-lg font-bold text-slate-800">Total Amount</span>
+                        <span className="text-2xl font-bold text-orange-600">
+                          ₹{viewingBillDetails.total.toFixed(2)}
+                        </span>
+                      </div>
+                      {viewingBillDetails.split_count > 1 && (
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mt-3">
+                          <div className="flex items-center gap-2 text-blue-800">
+                            <Users size={18} />
+                            <span className="font-medium">
+                              Split among {viewingBillDetails.split_count} people: 
+                              <span className="ml-2 text-lg font-bold">
+                                ₹{(viewingBillDetails.total / viewingBillDetails.split_count).toFixed(2)} each
+                              </span>
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Notes */}
+                  {viewingBillDetails.notes && (
+                    <div>
+                      <h3 className="font-bold text-slate-800 mb-2">Notes</h3>
+                      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-slate-700">
+                        {viewingBillDetails.notes}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Action Buttons */}
+                  <div className="flex gap-3 pt-4 border-t border-slate-200">
+                    <button
+                      onClick={() => generatePDF(viewingBillDetails)}
+                      className="flex-1 px-6 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors flex items-center justify-center gap-2 font-medium"
+                    >
+                      <Download size={20} />
+                      Download PDF
+                    </button>
+                    <button
+                      onClick={() => setViewingBillDetails(null)}
+                      className="px-6 py-3 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 transition-colors font-medium"
+                    >
+                      Close
+                    </button>
                   </div>
                 </div>
               </div>

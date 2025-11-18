@@ -851,4 +851,271 @@ export const customerAPI = {
   },
 };
 
+// ==================== PHASE 4 APIs ====================
+
+// Profile API
+export const profileAPI = {
+  // Complete profile with addresses, loyalty, favorites count
+  getCompleteProfile: async () => {
+    const response = await api.get('/api/profile/me');
+    return response.data;
+  },
+
+  updateProfile: async (profileData) => {
+    const response = await api.put('/api/profile/me', profileData);
+    return response.data;
+  },
+
+  // Addresses
+  getAddresses: async () => {
+    const response = await api.get('/api/profile/addresses');
+    return response.data;
+  },
+
+  addAddress: async (addressData) => {
+    const response = await api.post('/api/profile/addresses', addressData);
+    return response.data;
+  },
+
+  updateAddress: async (addressId, addressData) => {
+    const response = await api.put(`/api/profile/addresses/${addressId}`, addressData);
+    return response.data;
+  },
+
+  deleteAddress: async (addressId) => {
+    const response = await api.delete(`/api/profile/addresses/${addressId}`);
+    return response.data;
+  },
+
+  // Favorites
+  getFavorites: async () => {
+    const response = await api.get('/api/profile/favorites');
+    return response.data;
+  },
+
+  addFavorite: async (itemId) => {
+    const response = await api.post(`/api/profile/favorites/${itemId}`);
+    return response.data;
+  },
+
+  removeFavorite: async (itemId) => {
+    const response = await api.delete(`/api/profile/favorites/${itemId}`);
+    return response.data;
+  },
+
+  getDietaryPreferences: async () => {
+    const response = await api.get('/api/profile/dietary-preferences');
+    return response.data;
+  },
+};
+
+// Loyalty API
+export const loyaltyAPI = {
+  getAccount: async () => {
+    const response = await api.get('/api/loyalty/account');
+    return response.data;
+  },
+
+  getTransactions: async (page = 1, pageSize = 50) => {
+    const response = await api.get('/api/loyalty/transactions', {
+      params: { page, page_size: pageSize }
+    });
+    return response.data;
+  },
+
+  redeemPoints: async (points) => {
+    const response = await api.post('/api/loyalty/redeem', { points });
+    return response.data;
+  },
+
+  getTiers: async () => {
+    const response = await api.get('/api/loyalty/tiers');
+    return response.data;
+  },
+
+  getTierDiscount: async () => {
+    const response = await api.get('/api/loyalty/tier-discount');
+    return response.data;
+  },
+
+  generateReferralLink: async () => {
+    const response = await api.post('/api/loyalty/refer');
+    return response.data;
+  },
+
+  applyReferralCode: async (code) => {
+    const response = await api.post(`/api/loyalty/apply-referral/${code}`);
+    return response.data;
+  },
+
+  getStats: async () => {
+    const response = await api.get('/api/loyalty/stats');
+    return response.data;
+  },
+};
+
+// Recurring Reservations API
+export const recurringReservationsAPI = {
+  getAll: async () => {
+    const response = await api.get('/api/recurring-reservations');
+    return response.data;
+  },
+
+  getById: async (id) => {
+    const response = await api.get(`/api/recurring-reservations/${id}`);
+    return response.data;
+  },
+
+  create: async (patternData) => {
+    const response = await api.post('/api/recurring-reservations', patternData);
+    return response.data;
+  },
+
+  update: async (id, patternData) => {
+    const response = await api.put(`/api/recurring-reservations/${id}`, patternData);
+    return response.data;
+  },
+
+  delete: async (id, cancelFutureReservations = false) => {
+    const response = await api.delete(`/api/recurring-reservations/${id}`, {
+      params: { cancel_future_reservations: cancelFutureReservations }
+    });
+    return response.data;
+  },
+
+  toggle: async (id) => {
+    const response = await api.post(`/api/recurring-reservations/${id}/toggle`);
+    return response.data;
+  },
+
+  getGeneratedReservations: async (id) => {
+    const response = await api.get(`/api/recurring-reservations/${id}/reservations`);
+    return response.data;
+  },
+};
+
+// ==================== INVENTORY MANAGEMENT API ====================
+export const inventoryAPI = {
+  // Get all inventory items
+  getAll: async (params = {}) => {
+    const response = await api.get('/api/inventory/items', { params });
+    return response.data;
+  },
+
+  // Get specific inventory item
+  getById: async (itemId) => {
+    const response = await api.get(`/api/inventory/items/${itemId}`);
+    return response.data;
+  },
+
+  // Get low stock items
+  getLowStock: async () => {
+    const response = await api.get('/api/inventory/items/low-stock');
+    return response.data;
+  },
+
+  // Create new inventory item
+  create: async (itemData) => {
+    const response = await api.post('/api/inventory/items', itemData);
+    return response.data;
+  },
+
+  // Update inventory item
+  update: async (itemId, itemData) => {
+    const response = await api.put(`/api/inventory/items/${itemId}`, itemData);
+    return response.data;
+  },
+
+  // Delete inventory item
+  delete: async (itemId) => {
+    const response = await api.delete(`/api/inventory/items/${itemId}`);
+    return response.data;
+  },
+
+  // Get inventory transactions
+  getTransactions: async (itemId) => {
+    const response = await api.get(`/api/inventory/items/${itemId}/transactions`);
+    return response.data;
+  },
+
+  // Record inventory transaction
+  recordTransaction: async (transactionData) => {
+    const response = await api.post('/api/inventory/transactions', transactionData);
+    return response.data;
+  },
+};
+
+export const mlAnalyticsAPI = {
+  // Inventory Forecasting
+  getInventoryForecast: async (itemId, days = 30) => {
+    const response = await api.get(`/api/analytics/inventory/forecast/${itemId}`, {
+      params: { days }
+    });
+    return response.data;
+  },
+
+  getReorderRecommendations: async (threshold = 20) => {
+    const response = await api.get('/api/analytics/inventory/reorder-recommendations', {
+      params: { threshold }
+    });
+    return response.data;
+  },
+
+  // Demand Prediction
+  getDemandForecast: async (days = 30) => {
+    const response = await api.get('/api/analytics/demand/menu-items', {
+      params: { days }
+    });
+    return response.data;
+  },
+
+  getPeakHours: async () => {
+    const response = await api.get('/api/analytics/demand/peak-hours');
+    return response.data;
+  },
+
+  getRevenueForecast: async (days = 90) => {
+    const response = await api.get('/api/analytics/demand/revenue-forecast', {
+      params: { days }
+    });
+    return response.data;
+  },
+
+  // Customer Analytics
+  getCustomerSegments: async () => {
+    const response = await api.get('/api/analytics/customers/segments');
+    return response.data;
+  },
+
+  getChurnRisk: async (threshold = 70) => {
+    const response = await api.get('/api/analytics/customers/churn-risk', {
+      params: { threshold }
+    });
+    return response.data;
+  },
+
+  getCustomerCLV: async (customerId) => {
+    const response = await api.get(`/api/analytics/customers/${customerId}/lifetime-value`);
+    return response.data;
+  },
+
+  getRecommendations: async (customerId, limit = 5) => {
+    const response = await api.get(`/api/analytics/customers/${customerId}/recommendations`, {
+      params: { limit }
+    });
+    return response.data;
+  },
+
+  // Dashboard
+  getAnalyticsOverview: async () => {
+    const response = await api.get('/api/analytics/overview');
+    return response.data;
+  },
+
+  getInsights: async () => {
+    const response = await api.get('/api/analytics/insights');
+    return response.data;
+  },
+};
+
 export default api;

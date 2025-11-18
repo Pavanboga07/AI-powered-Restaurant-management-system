@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Routes, Route, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { 
@@ -14,6 +14,9 @@ import {
   LogOut
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useNotifications } from '../../contexts/NotificationContext';
+import { useWebSocket } from '../../hooks/useWebSocket';
+import NotificationBell from '../shared/NotificationBell';
 
 // Import Phase 3 Components
 import MenuBrowsing from './MenuBrowsing';
@@ -33,11 +36,51 @@ const CustomerDashboard = () => {
   const location = useLocation();
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  
+  // WebSocket integration for real-time order updates
+  const { socket, isConnected, lastMessage } = useWebSocket('customer', user);
+  const { addNotification } = useNotifications();
 
   const handleLogout = () => {
     logout();
     navigate('/login');
   };
+
+  // Handle incoming WebSocket messages for customer
+  useEffect(() => {
+    if (lastMessage) {
+      console.log('🛍️ Customer Dashboard received message:', lastMessage.type);
+      
+      switch (lastMessage.type) {
+        case 'order_status_changed':
+          addNotification({
+            type: 'success',
+            title: 'Order Status Update',
+            message: `Your order #${lastMessage.data.order_id} is now ${lastMessage.data.new_status}`
+          });
+          break;
+          
+        case 'reservation_update':
+          addNotification({
+            type: 'info',
+            title: 'Reservation Update',
+            message: `Your reservation #${lastMessage.data.reservation_id} has been updated`
+          });
+          break;
+          
+        case 'custom_notification':
+          addNotification({
+            type: 'info',
+            title: lastMessage.data.title || 'Notification',
+            message: lastMessage.data.message || 'You have a new notification'
+          });
+          break;
+          
+        default:
+          console.log('Unhandled message type:', lastMessage.type);
+      }
+    }
+  }, [lastMessage, addNotification]);
 
   const handleAddToCart = (item) => {
     const existingItem = cart.find(i => i.id === item.id);
@@ -125,17 +168,32 @@ const CustomerDashboard = () => {
                 Track Order
               </NavLink>
               <NavLink
-                to="/customer/profile"
+                to="/profile"
                 className={({ isActive }) =>
                   `font-medium transition-colors ${isActive ? 'text-orange-600' : 'text-slate-600 hover:text-orange-600'}`
                 }
               >
                 Profile
               </NavLink>
+              <NavLink
+                to="/loyalty"
+                className={({ isActive }) =>
+                  `font-medium transition-colors ${isActive ? 'text-orange-600' : 'text-slate-600 hover:text-orange-600'}`
+                }
+              >
+                Loyalty
+              </NavLink>
             </nav>
 
             {/* User Info & Actions */}
             <div className="flex items-center gap-2 sm:gap-3">
+              {isConnected && (
+                <div className="hidden sm:flex items-center gap-2 text-green-600 text-xs">
+                  <div className="w-2 h-2 bg-green-600 rounded-full animate-pulse"></div>
+                  <span>Live</span>
+                </div>
+              )}
+              <NotificationBell />
               {user && (
                 <div className="hidden md:flex items-center gap-2 sm:gap-3 px-2 sm:px-3 py-1 sm:py-2 bg-slate-100 rounded-lg">
                   <User size={14} className="text-slate-600" />
@@ -194,12 +252,20 @@ const CustomerDashboard = () => {
               Track
             </NavLink>
             <NavLink
-              to="/customer/profile"
+              to="/profile"
               className={({ isActive }) =>
                 `font-medium transition-colors whitespace-nowrap text-sm px-3 py-1 rounded-full ${isActive ? 'bg-orange-600 text-white' : 'text-slate-600 hover:text-orange-600'}`
               }
             >
               Profile
+            </NavLink>
+            <NavLink
+              to="/loyalty"
+              className={({ isActive }) =>
+                `font-medium transition-colors whitespace-nowrap text-sm px-3 py-1 rounded-full ${isActive ? 'bg-orange-600 text-white' : 'text-slate-600 hover:text-orange-600'}`
+              }
+            >
+              Loyalty
             </NavLink>
           </nav>
         </div>

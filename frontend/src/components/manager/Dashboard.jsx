@@ -1,8 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Menu } from 'lucide-react';
 import Sidebar from '../shared/Sidebar';
+import NotificationBell from '../shared/NotificationBell';
+import { useAuth } from '../../contexts/AuthContext';
+import { useNotifications } from '../../contexts/NotificationContext';
+import { useWebSocket } from '../../hooks/useWebSocket';
 import Analytics from './tabs/Analytics';
 import EnhancedAnalytics from './tabs/EnhancedAnalytics';
 import AdvancedAnalytics from './tabs/AdvancedAnalytics';
@@ -16,6 +20,8 @@ import CouponManager from './tabs/CouponManager';
 import ReviewManager from './tabs/ReviewManager';
 import QRCodeGenerator from './tabs/QRCodeGenerator';
 import EmployeeScheduling from './tabs/EmployeeScheduling';
+import InventoryManager from './tabs/InventoryManager';
+import EmailCampaignManager from './EmailCampaignManager';
 import TabPlaceholder from './tabs/TabPlaceholder';
 import {
   LayoutGrid,
@@ -38,10 +44,76 @@ import {
  */
 const Dashboard = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  
+  // WebSocket integration for real-time updates
+  const { user } = useAuth();
+  const { socket, isConnected, lastMessage } = useWebSocket('manager', user);
+  const { addNotification } = useNotifications();
 
   const toggleSidebar = () => {
     setIsSidebarOpen(!isSidebarOpen);
   };
+
+  // Handle incoming WebSocket messages
+  useEffect(() => {
+    if (lastMessage) {
+      console.log('📨 Manager Dashboard received message:', lastMessage.type);
+      
+      switch (lastMessage.type) {
+        case 'new_order':
+          addNotification({
+            type: 'info',
+            title: 'New Order Received',
+            message: `Order #${lastMessage.data.order_id} has been placed`
+          });
+          // Trigger data refresh for order-related components
+          break;
+          
+        case 'order_status_changed':
+          addNotification({
+            type: 'success',
+            title: 'Order Status Updated',
+            message: `Order #${lastMessage.data.order_id} is now ${lastMessage.data.new_status}`
+          });
+          break;
+          
+        case 'table_status_changed':
+          addNotification({
+            type: 'info',
+            title: 'Table Status Changed',
+            message: `Table ${lastMessage.data.table_number} is now ${lastMessage.data.new_status}`
+          });
+          break;
+          
+        case 'inventory_low':
+          addNotification({
+            type: 'warning',
+            title: 'Low Stock Alert',
+            message: `${lastMessage.data.inventory?.item_name || 'Item'} is running low (${lastMessage.data.inventory?.current_quantity || 0} ${lastMessage.data.inventory?.unit || 'units'} left)`
+          });
+          break;
+          
+        case 'reservation_update':
+          addNotification({
+            type: 'info',
+            title: 'Reservation Updated',
+            message: `Reservation #${lastMessage.data.reservation_id} has been updated`
+          });
+          break;
+          
+        case 'custom_notification':
+          addNotification({
+            type: 'info',
+            title: lastMessage.data.title || 'Notification',
+            message: lastMessage.data.message || 'You have a new notification'
+          });
+          break;
+          
+        default:
+          console.log('Unhandled message type:', lastMessage.type);
+      }
+    }
+  }, [lastMessage, addNotification]);
 
   // Animation variants for page transitions
   const pageVariants = {
@@ -77,14 +149,25 @@ const Dashboard = () => {
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Mobile Header */}
           <header className="lg:hidden bg-slate-900/95 backdrop-blur-xl border-b border-slate-700 p-4">
-            <div className="flex items-center gap-4">
-              <button
-                onClick={toggleSidebar}
-                className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-              >
-                <Menu className="text-white" size={24} />
-              </button>
-              <h1 className="text-xl font-bold text-white">Manager Dashboard</h1>
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <button
+                  onClick={toggleSidebar}
+                  className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                >
+                  <Menu className="text-white" size={24} />
+                </button>
+                <h1 className="text-xl font-bold text-white">Manager Dashboard</h1>
+              </div>
+              <div className="flex items-center gap-2">
+                {isConnected && (
+                  <div className="flex items-center gap-2 text-green-400 text-xs">
+                    <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                    <span className="hidden sm:inline">Live</span>
+                  </div>
+                )}
+                <NotificationBell />
+              </div>
             </div>
           </header>
 
@@ -168,6 +251,22 @@ const Dashboard = () => {
                       exit="exit"
                     >
                       <BillingManager />
+                    </motion.div>
+                  }
+                />
+
+                {/* Inventory Tab */}
+                <Route
+                  path="/inventory"
+                  element={
+                    <motion.div
+                      key="inventory"
+                      variants={pageVariants}
+                      initial="initial"
+                      animate="animate"
+                      exit="exit"
+                    >
+                      <InventoryManager />
                     </motion.div>
                   }
                 />
@@ -296,6 +395,22 @@ const Dashboard = () => {
                       exit="exit"
                     >
                       <EnhancedAnalytics />
+                    </motion.div>
+                  }
+                />
+
+                {/* Email Campaigns Route */}
+                <Route
+                  path="/campaigns"
+                  element={
+                    <motion.div
+                      key="campaigns"
+                      variants={pageVariants}
+                      initial="initial"
+                      animate="animate"
+                      exit="exit"
+                    >
+                      <EmailCampaignManager />
                     </motion.div>
                   }
                 />

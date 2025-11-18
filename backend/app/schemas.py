@@ -677,19 +677,21 @@ class StaffOrderStats(BaseModel):
 class CustomerCreate(BaseModel):
     user_id: Optional[int] = None
     phone: Optional[str] = None
-    preferences: Optional[str] = None
+    address: Optional[str] = None
     loyalty_points: int = 0
 
 class CustomerUpdate(BaseModel):
     phone: Optional[str] = None
-    preferences: Optional[str] = None
+    address: Optional[str] = None
 
 class Customer(BaseModel):
     id: int
     user_id: Optional[int] = None
     phone: Optional[str] = None
-    preferences: Optional[str] = None
-    loyalty_points: int
+    address: Optional[str] = None
+    total_orders: int = 0
+    total_spent: float = 0.0
+    loyalty_points: int = 0
     created_at: datetime
     updated_at: Optional[datetime] = None
     
@@ -721,3 +723,577 @@ class CustomerOrderCreate(BaseModel):
     customer_name: Optional[str] = None
     special_notes: Optional[str] = None
     items: List[CustomerOrderItemCreate]
+
+
+# ==================== INVENTORY SCHEMAS (Phase 2) ====================
+
+# ============ Supplier Schemas ============
+class SupplierBase(BaseModel):
+    name: str
+    contact_person: Optional[str] = None
+    email: Optional[EmailStr] = None
+    phone: Optional[str] = None
+    address: Optional[str] = None
+    is_active: bool = True
+
+class SupplierCreate(SupplierBase):
+    pass
+
+class SupplierUpdate(BaseModel):
+    name: Optional[str] = None
+    contact_person: Optional[str] = None
+    email: Optional[EmailStr] = None
+    phone: Optional[str] = None
+    address: Optional[str] = None
+    is_active: Optional[bool] = None
+
+class Supplier(SupplierBase):
+    id: int
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+    
+    class Config:
+        from_attributes = True
+
+
+# ============ Inventory Item Schemas ============
+class InventoryItemBase(BaseModel):
+    name: str
+    category: Optional[str] = None
+    unit: Optional[str] = None
+    current_quantity: float = 0
+    min_quantity: float = 0
+    max_quantity: Optional[float] = None
+    unit_cost: Optional[float] = None
+    supplier_id: Optional[int] = None
+    location: Optional[str] = None
+    is_active: bool = True
+
+class InventoryItemCreate(InventoryItemBase):
+    pass
+
+class InventoryItemUpdate(BaseModel):
+    name: Optional[str] = None
+    category: Optional[str] = None
+    unit: Optional[str] = None
+    current_quantity: Optional[float] = None
+    min_quantity: Optional[float] = None
+    max_quantity: Optional[float] = None
+    unit_cost: Optional[float] = None
+    supplier_id: Optional[int] = None
+    location: Optional[str] = None
+    is_active: Optional[bool] = None
+
+class InventoryItem(InventoryItemBase):
+    id: int
+    last_restocked: Optional[datetime] = None
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+    supplier: Optional[Supplier] = None
+    
+    class Config:
+        from_attributes = True
+
+
+# ============ Inventory Transaction Schemas ============
+class InventoryTransactionBase(BaseModel):
+    inventory_item_id: int
+    transaction_type: str  # purchase, usage, wastage, adjustment
+    quantity: float
+    unit_cost: Optional[float] = None
+    reference_type: Optional[str] = None  # order, purchase, adjustment
+    reference_id: Optional[int] = None
+    notes: Optional[str] = None
+
+class InventoryTransactionCreate(InventoryTransactionBase):
+    performed_by: Optional[int] = None
+
+class InventoryTransaction(InventoryTransactionBase):
+    id: int
+    performed_by: Optional[int] = None
+    created_at: datetime
+    inventory_item: Optional[InventoryItem] = None
+    
+    class Config:
+        from_attributes = True
+
+
+# ============ Menu Item Recipe Schemas ============
+class MenuItemRecipeBase(BaseModel):
+    menu_item_id: int
+    inventory_item_id: int
+    quantity_required: float
+
+class MenuItemRecipeCreate(MenuItemRecipeBase):
+    pass
+
+class MenuItemRecipeUpdate(BaseModel):
+    quantity_required: Optional[float] = None
+
+class MenuItemRecipe(MenuItemRecipeBase):
+    id: int
+    created_at: datetime
+    menu_item: Optional[MenuItem] = None
+    inventory_item: Optional[InventoryItem] = None
+    
+    class Config:
+        from_attributes = True
+
+
+# ============ Purchase Order Schemas ============
+class PurchaseOrderItemBase(BaseModel):
+    inventory_item_id: int
+    quantity: float
+    unit_cost: float
+
+class PurchaseOrderItemCreate(PurchaseOrderItemBase):
+    pass
+
+class PurchaseOrderItem(PurchaseOrderItemBase):
+    id: int
+    purchase_order_id: int
+    received_quantity: float = 0
+    created_at: datetime
+    inventory_item: Optional[InventoryItem] = None
+    
+    class Config:
+        from_attributes = True
+
+class PurchaseOrderBase(BaseModel):
+    supplier_id: int
+    expected_delivery: Optional[datetime] = None
+    notes: Optional[str] = None
+
+class PurchaseOrderCreate(PurchaseOrderBase):
+    items: List[PurchaseOrderItemCreate]
+
+class PurchaseOrderUpdate(BaseModel):
+    status: Optional[str] = None  # pending, confirmed, received, cancelled
+    expected_delivery: Optional[datetime] = None
+    actual_delivery: Optional[datetime] = None
+    notes: Optional[str] = None
+
+class PurchaseOrder(PurchaseOrderBase):
+    id: int
+    po_number: str
+    status: str
+    order_date: datetime
+    actual_delivery: Optional[datetime] = None
+    total_cost: Optional[float] = None
+    created_by: Optional[int] = None
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+    supplier: Optional[Supplier] = None
+    items: List[PurchaseOrderItem] = []
+    
+    class Config:
+        from_attributes = True
+
+
+# ============ Inventory Analytics Schemas ============
+class LowStockAlert(BaseModel):
+    item_id: int
+    item_name: str
+    category: str
+    current_quantity: float
+    min_quantity: float
+    unit: str
+    status: str  # critical, low, warning
+
+class InventoryStats(BaseModel):
+    total_items: int
+    total_value: float
+    low_stock_count: int
+    out_of_stock_count: int
+    total_suppliers: int
+    pending_purchase_orders: int
+
+# ============ Notification & Campaign Schemas (Phase 3) ============
+
+class EmailCampaign(BaseModel):
+    subject: str
+    title: str
+    subtitle: Optional[str] = None
+    description: Optional[str] = None
+    offer_details: Optional[List[str]] = []
+    cta_text: Optional[str] = "Order Now"
+    cta_link: Optional[str] = "http://localhost:5173"
+    valid_until: Optional[str] = None
+    image_url: Optional[str] = None
+    recipient_filter: str = "all"  # all, customers, specific
+    recipient_emails: Optional[List[str]] = []
+
+class SMSCampaign(BaseModel):
+    message: str
+    recipient_filter: str = "all"  # all, customers, specific
+    recipient_phones: Optional[List[str]] = []
+
+class CustomerContact(BaseModel):
+    id: int
+    username: str
+    full_name: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    
+    class Config:
+        from_attributes = True
+
+
+# ============ PHASE 4: Enhanced User Features Schemas ============
+
+# Customer Profile Schemas
+class CustomerProfileBase(BaseModel):
+    date_of_birth: Optional[date] = None
+    dietary_preferences: Optional[str] = None  # JSON string
+    allergies: Optional[str] = None  # JSON string
+    preferred_payment_method: Optional[str] = None
+
+class CustomerProfileCreate(CustomerProfileBase):
+    pass
+
+class CustomerProfileUpdate(CustomerProfileBase):
+    phone_verified: Optional[bool] = None
+    email_verified: Optional[bool] = None
+
+class CustomerProfile(CustomerProfileBase):
+    id: int
+    user_id: int
+    phone_verified: bool
+    email_verified: bool
+    favorite_items: Optional[str] = None
+    default_address_id: Optional[int] = None
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+    
+    class Config:
+        from_attributes = True
+
+# Customer Address Schemas
+class CustomerAddressBase(BaseModel):
+    label: Optional[str] = None
+    address_line1: str
+    address_line2: Optional[str] = None
+    city: str
+    state: Optional[str] = None
+    postal_code: Optional[str] = None
+    country: str = "India"
+    delivery_instructions: Optional[str] = None
+
+class CustomerAddressCreate(CustomerAddressBase):
+    is_default: bool = False
+
+class CustomerAddressUpdate(BaseModel):
+    label: Optional[str] = None
+    address_line1: Optional[str] = None
+    address_line2: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    postal_code: Optional[str] = None
+    country: Optional[str] = None
+    delivery_instructions: Optional[str] = None
+    is_default: Optional[bool] = None
+
+class CustomerAddress(CustomerAddressBase):
+    id: int
+    customer_id: int
+    is_default: bool
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+    
+    class Config:
+        from_attributes = True
+
+# Loyalty Account Schemas
+class LoyaltyAccountBase(BaseModel):
+    points_balance: int = 0
+    tier_level: str = "bronze"
+
+class LoyaltyAccount(LoyaltyAccountBase):
+    id: int
+    customer_id: int
+    lifetime_points: int
+    tier_valid_until: Optional[datetime] = None
+    total_spent: float
+    total_orders: int
+    referral_code: Optional[str] = None
+    referred_by: Optional[int] = None
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+    
+    class Config:
+        from_attributes = True
+
+class LoyaltyTransactionBase(BaseModel):
+    transaction_type: str  # earn, redeem, expire, bonus, referral
+    points_change: int
+    description: Optional[str] = None
+
+class LoyaltyTransactionCreate(LoyaltyTransactionBase):
+    reference_type: Optional[str] = None
+    reference_id: Optional[int] = None
+
+class LoyaltyTransaction(LoyaltyTransactionBase):
+    id: int
+    loyalty_account_id: int
+    reference_type: Optional[str] = None
+    reference_id: Optional[int] = None
+    created_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+class RedeemPointsRequest(BaseModel):
+    points: int = Field(gt=0)
+    order_id: Optional[int] = None
+
+class TierInfo(BaseModel):
+    tier_name: str
+    min_points: int
+    max_points: Optional[int] = None
+    discount_percentage: float
+    benefits: List[str]
+
+# Review Schemas
+class ReviewBase(BaseModel):
+    menu_item_id: int
+    rating: int = Field(ge=1, le=5)
+    title: Optional[str] = None
+    comment: Optional[str] = None
+
+class ReviewCreate(ReviewBase):
+    order_id: Optional[int] = None
+
+class ReviewUpdate(BaseModel):
+    rating: Optional[int] = Field(None, ge=1, le=5)
+    title: Optional[str] = None
+    comment: Optional[str] = None
+
+class ReviewWithPhotos(ReviewBase):
+    id: int
+    user_id: int
+    order_id: Optional[int] = None
+    photos: Optional[str] = None
+    is_verified_purchase: bool
+    helpful_count: int
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+    
+    class Config:
+        from_attributes = True
+
+class ReviewResponse(BaseModel):
+    review: ReviewWithPhotos
+    user_name: str
+    can_edit: bool = False
+
+# Recurring Reservation Schemas
+class RecurringReservationBase(BaseModel):
+    pattern_type: str  # weekly, biweekly, monthly
+    day_of_week: Optional[int] = Field(None, ge=0, le=6)  # 0=Monday, 6=Sunday
+    time: time
+    guests: int = Field(gt=0)
+    special_requests: Optional[str] = None
+    start_date: date
+    end_date: Optional[date] = None
+
+class RecurringReservationCreate(RecurringReservationBase):
+    pass
+
+class RecurringReservationUpdate(BaseModel):
+    pattern_type: Optional[str] = None
+    day_of_week: Optional[int] = Field(None, ge=0, le=6)
+    time: Optional[time] = None
+    guests: Optional[int] = Field(None, gt=0)
+    special_requests: Optional[str] = None
+    is_active: Optional[bool] = None
+    end_date: Optional[date] = None
+
+class RecurringReservation(RecurringReservationBase):
+    id: int
+    user_id: int
+    is_active: bool
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+    
+    class Config:
+        from_attributes = True
+
+# Complete Profile Response (combines User + CustomerProfile + Loyalty)
+class CompleteProfileResponse(BaseModel):
+    user: User
+    profile: Optional[CustomerProfile] = None
+    addresses: List[CustomerAddress] = []
+    loyalty: Optional[LoyaltyAccount] = None
+    favorites_count: int = 0
+
+
+# ==================== PHASE 5: KITCHEN DISPLAY SYSTEM SCHEMAS ====================
+
+from .models import PrepStatus, StationType, KitchenStatus
+
+# Kitchen Station Schemas
+class KitchenStationBase(BaseModel):
+    name: str = Field(..., max_length=100)
+    description: Optional[str] = None
+    station_type: str  # StationType
+    is_active: bool = True
+    display_order: int = 0
+    max_concurrent_orders: int = 10
+    average_prep_time: Optional[int] = None  # minutes
+
+class KitchenStationCreate(KitchenStationBase):
+    pass
+
+class KitchenStationUpdate(BaseModel):
+    name: Optional[str] = Field(None, max_length=100)
+    description: Optional[str] = None
+    is_active: Optional[bool] = None
+    display_order: Optional[int] = None
+    max_concurrent_orders: Optional[int] = None
+    average_prep_time: Optional[int] = None
+
+class KitchenStation(KitchenStationBase):
+    id: int
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+    
+    class Config:
+        from_attributes = True
+
+# Station Assignment Schemas
+class StationAssignmentBase(BaseModel):
+    chef_id: int
+    station_id: int
+    shift_start: datetime
+    shift_end: Optional[datetime] = None
+    is_primary: bool = False
+
+class StationAssignmentCreate(StationAssignmentBase):
+    pass
+
+class StationAssignment(StationAssignmentBase):
+    id: int
+    created_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+# Order Item KDS Schemas
+class OrderItemKDSUpdate(BaseModel):
+    station_id: Optional[int] = None
+    priority: Optional[int] = None
+    prep_status: Optional[str] = None  # PrepStatus
+    assigned_chef_id: Optional[int] = None
+    preparation_notes: Optional[str] = None
+    estimated_prep_time: Optional[int] = None
+
+class OrderItemKDS(BaseModel):
+    id: int
+    order_id: int
+    menu_item_id: int
+    menu_item_name: str
+    quantity: int
+    price: float
+    special_instructions: Optional[str] = None
+    station_id: Optional[int] = None
+    station_name: Optional[str] = None
+    priority: int = 0
+    prep_status: str = "pending"
+    prep_start_time: Optional[datetime] = None
+    prep_end_time: Optional[datetime] = None
+    assigned_chef_id: Optional[int] = None
+    assigned_chef_name: Optional[str] = None
+    preparation_notes: Optional[str] = None
+    estimated_prep_time: Optional[int] = None
+    created_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+# Order KDS View
+class OrderKDS(BaseModel):
+    id: int
+    table_number: Optional[int] = None
+    customer_name: Optional[str] = None
+    status: str
+    kitchen_status: str = "pending"
+    total_amount: float
+    special_notes: Optional[str] = None
+    created_at: datetime
+    kitchen_received_at: Optional[datetime] = None
+    all_items_ready_at: Optional[datetime] = None
+    order_items: List[OrderItemKDS] = []
+    
+    class Config:
+        from_attributes = True
+
+# Station Performance
+class StationPerformance(BaseModel):
+    station_id: int
+    station_name: str
+    active_orders: int
+    pending_items: int
+    preparing_items: int
+    ready_items: int
+    avg_prep_time_minutes: Optional[float] = None
+    items_completed_today: int
+    on_time_percentage: Optional[float] = None
+
+# KDS Dashboard Stats
+class KDSDashboardStats(BaseModel):
+    total_active_orders: int
+    total_pending_items: int
+    total_preparing_items: int
+    total_ready_items: int
+    stations: List[StationPerformance]
+    oldest_pending_order: Optional[OrderKDS] = None
+    average_ticket_time_minutes: Optional[float] = None
+
+# Display Settings
+class TicketDisplaySettingsBase(BaseModel):
+    font_size: str = "medium"  # small, medium, large
+    show_customer_names: bool = True
+    show_ticket_times: bool = True
+    show_special_requests: bool = True
+    auto_bump_completed: bool = False
+    bump_delay_seconds: int = 0
+    alert_threshold_minutes: int = 15
+
+class TicketDisplaySettingsUpdate(TicketDisplaySettingsBase):
+    pass
+
+class TicketDisplaySettings(TicketDisplaySettingsBase):
+    id: int
+    station_id: Optional[int] = None
+    updated_at: Optional[datetime] = None
+    
+    class Config:
+        from_attributes = True
+
+# Performance Log
+class PerformanceLogCreate(BaseModel):
+    station_id: int
+    order_item_id: int
+    action: str  # started, completed, delayed, bumped
+    chef_id: Optional[int] = None
+    duration_seconds: Optional[int] = None
+    notes: Optional[str] = None
+
+class PerformanceLog(PerformanceLogCreate):
+    id: int
+    created_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+# Bump Order Request
+class BumpOrderRequest(BaseModel):
+    order_id: int
+    station_id: Optional[int] = None  # If provided, only bump items from this station
+
+# Reassign Item Request
+class ReassignItemRequest(BaseModel):
+    order_item_id: int
+    new_station_id: int
+    new_chef_id: Optional[int] = None
+    reason: Optional[str] = None

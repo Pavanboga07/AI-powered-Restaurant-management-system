@@ -16,8 +16,11 @@ sio = socketio.AsyncServer(
     engineio_logger=True
 )
 
-# Socket.IO ASGI app
-socket_app = socketio.ASGIApp(sio)
+# Socket.IO ASGI app - note: we'll wrap the FastAPI app with this
+socket_app = socketio.ASGIApp(
+    sio,
+    socketio_path='socket.io'  # This tells Socket.IO to handle /socket.io path
+)
 
 # Track connected users and their rooms
 # Format: {sid: {"user_id": int, "role": str, "username": str}}
@@ -286,6 +289,112 @@ async def broadcast_custom_notification(room: str, notification_data: dict):
         logger.info(f"Broadcasted custom notification to {room}")
     except Exception as e:
         logger.error(f"Error broadcasting custom notification: {e}")
+
+
+# ============================================
+# Phase 5: Kitchen Display System (KDS) Events
+# ============================================
+
+async def broadcast_order_item_status_changed(item_data: dict):
+    """
+    Broadcast order item status change to kitchen room
+    Used when item prep status changes (pending -> preparing -> ready)
+    Args:
+        item_data: Dict containing order item details with prep_status
+    """
+    try:
+        event_data = {
+            'type': 'order_item_status_changed',
+            'item': item_data,
+            'message': f"Item {item_data.get('menu_item_name')} status: {item_data.get('prep_status')}",
+            'timestamp': item_data.get('updated_at')
+        }
+        
+        # Broadcast to chef room for KDS updates
+        await sio.emit('order_item_updated', event_data, room=CHEF_ROOM)
+        
+        logger.info(f"Broadcasted order_item_status_changed to {CHEF_ROOM}")
+    except Exception as e:
+        logger.error(f"Error broadcasting order_item_status_changed: {e}")
+
+
+async def broadcast_order_bumped(order_data: dict):
+    """
+    Broadcast order bump (removal from KDS display)
+    Args:
+        order_data: Dict containing order details that was bumped
+    """
+    try:
+        event_data = {
+            'type': 'order_bumped',
+            'order': order_data,
+            'message': f"Order #{order_data.get('id')} bumped from kitchen display",
+            'timestamp': order_data.get('bumped_at')
+        }
+        
+        # Notify chef room to remove from display
+        await sio.emit('order_bumped', event_data, room=CHEF_ROOM)
+        
+        # Also notify staff that order is complete
+        await sio.emit('order_ready', {
+            'type': 'order_ready',
+            'order': order_data,
+            'message': f"Order #{order_data.get('id')} is ready for service",
+            'timestamp': order_data.get('bumped_at')
+        }, room=STAFF_ROOM)
+        
+        logger.info(f"Broadcasted order_bumped to chef and staff rooms")
+    except Exception as e:
+        logger.error(f"Error broadcasting order_bumped: {e}")
+
+
+async def broadcast_order_item_reassigned(item_data: dict, old_station: str, new_station: str):
+    """
+    Broadcast item reassignment between stations
+    Args:
+        item_data: Dict containing order item details
+        old_station: Previous station name
+        new_station: New station name
+    """
+    try:
+        event_data = {
+            'type': 'order_item_reassigned',
+            'item': item_data,
+            'old_station': old_station,
+            'new_station': new_station,
+            'message': f"Item {item_data.get('menu_item_name')} reassigned from {old_station} to {new_station}",
+            'timestamp': item_data.get('updated_at')
+        }
+        
+        await sio.emit('order_item_updated', event_data, room=CHEF_ROOM)
+        
+        logger.info(f"Broadcasted order_item_reassigned to {CHEF_ROOM}")
+    except Exception as e:
+        logger.error(f"Error broadcasting order_item_reassigned: {e}")
+
+
+async def broadcast_kitchen_performance_alert(station_data: dict):
+    """
+    Broadcast kitchen performance alert (e.g., falling behind, high load)
+    Args:
+        station_data: Dict containing station performance metrics
+    """
+    try:
+        event_data = {
+            'type': 'kitchen_performance_alert',
+            'station': station_data,
+            'message': station_data.get('alert_message', 'Performance alert'),
+            'severity': station_data.get('severity', 'info'),
+            'timestamp': station_data.get('timestamp')
+        }
+        
+        # Notify managers and chefs
+        await sio.emit('performance_alert', event_data, room=MANAGER_ROOM)
+        await sio.emit('performance_alert', event_data, room=CHEF_ROOM)
+        
+        logger.info(f"Broadcasted kitchen_performance_alert")
+    except Exception as e:
+        logger.error(f"Error broadcasting kitchen_performance_alert: {e}")
 
 
 # ============================================

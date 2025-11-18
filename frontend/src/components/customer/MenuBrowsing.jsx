@@ -5,7 +5,7 @@ import {
   X, Info, Plus, Minus, Leaf, Drumstick, Vegan,
   ChevronDown, Loader2
 } from 'lucide-react';
-import { customerAPI } from '../../services/api';
+import { customerAPI, profileAPI } from '../../services/api';
 
 const MenuBrowsing = ({ onAddToCart, cart = [] }) => {
   const [menuItems, setMenuItems] = useState([]);
@@ -65,7 +65,7 @@ const MenuBrowsing = ({ onAddToCart, cart = [] }) => {
 
   const loadFavorites = async () => {
     try {
-      const data = await customerAPI.getFavorites();
+      const data = await profileAPI.getFavorites();
       setFavorites(data.map(item => item.id));
     } catch (err) {
       console.error('Error loading favorites:', err);
@@ -77,10 +77,10 @@ const MenuBrowsing = ({ onAddToCart, cart = [] }) => {
     e.stopPropagation();
     try {
       if (favorites.includes(itemId)) {
-        await customerAPI.removeFavorite(itemId);
+        await profileAPI.removeFavorite(itemId);
         setFavorites(favorites.filter(id => id !== itemId));
       } else {
-        await customerAPI.addFavorite(itemId);
+        await profileAPI.addFavorite(itemId);
         setFavorites([...favorites, itemId]);
       }
     } catch (err) {

@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from datetime import timedelta
+from typing import Optional
 from .. import schemas, models
 from ..database import get_db
 from ..crud import crud
@@ -12,6 +13,7 @@ from ..utils.security import (
     decode_token,
     ACCESS_TOKEN_EXPIRE_MINUTES
 )
+# from ..services.email_service import email_service  # Phase 3 - Skipped
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -93,7 +95,11 @@ def require_role(required_roles: list):
     return role_checker
 
 @router.post("/register", response_model=schemas.User, status_code=status.HTTP_201_CREATED)
-def register(user: schemas.UserCreate, db: Session = Depends(get_db)):
+async def register(
+    user: schemas.UserCreate,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db)
+):
     """Register a new user"""
     # Check if username already exists
     db_user = crud.get_user_by_username(db, username=user.username)
@@ -112,7 +118,17 @@ def register(user: schemas.UserCreate, db: Session = Depends(get_db)):
         )
     
     # Create new user
-    return crud.create_user(db=db, user=user)
+    new_user = crud.create_user(db=db, user=user)
+    
+    # Send welcome email - Phase 3 Skipped
+    # if new_user.email:
+    #     background_tasks.add_task(
+    #         email_service.send_welcome_email,
+    #         email=new_user.email,
+    #         customer_name=new_user.full_name or new_user.username
+    #     )
+    
+    return new_user
 
 @router.post("/login", response_model=schemas.Token)
 def login(
@@ -189,8 +205,21 @@ async def get_me(current_user: models.User = Depends(get_current_active_user)):
 @router.post("/login/json", response_model=schemas.Token)
 def login_json(login_data: schemas.LoginRequest, db: Session = Depends(get_db)):
     """Login with JSON body (alternative to form data)"""
+    print(f"🔐 Login attempt - Username: {login_data.username}")
     user = crud.get_user_by_username(db, username=login_data.username)
-    if not user or not verify_password(login_data.password, user.hashed_password):
+    
+    if not user:
+        print(f"❌ User not found: {login_data.username}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password"
+        )
+    
+    print(f"✓ User found: {user.username}, Role: {user.role}, Active: {user.is_active}")
+    password_valid = verify_password(login_data.password, user.hashed_password)
+    print(f"{'✓' if password_valid else '❌'} Password verification: {password_valid}")
+    
+    if not password_valid:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password"
@@ -213,3 +242,27 @@ def login_json(login_data: schemas.LoginRequest, db: Session = Depends(get_db)):
         "refresh_token": refresh_token,
         "token_type": "bearer"
     }
+
+@router.get("/users", response_model=list[schemas.User])
+async def get_users(
+    role: Optional[str] = None,
+    is_active: Optional[bool] = None,
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_role(["admin", "manager"]))
+):
+    """
+    Get list of users with optional filters
+    Only accessible by admin and manager roles
+    """
+    query = db.query(models.User)
+    
+    if role:
+        query = query.filter(models.User.role == role)
+    
+    if is_active is not None:
+        query = query.filter(models.User.is_active == is_active)
+    
+    users = query.offset(skip).limit(limit).all()
+    return users

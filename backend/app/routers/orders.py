@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status, BackgroundTasks
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, and_
 from typing import List, Optional
@@ -7,6 +7,8 @@ from .. import models, schemas
 from ..database import get_db
 from .auth import get_current_user
 from ..websocket import broadcast_new_order, broadcast_order_ready, broadcast_order_status_changed
+# from ..services.email_service import email_service  # Phase 3 - Skipped
+# from ..services.sms_service import sms_service  # Phase 3 - Skipped
 
 router = APIRouter(prefix="/api/orders", tags=["orders"])
 
@@ -14,6 +16,7 @@ router = APIRouter(prefix="/api/orders", tags=["orders"])
 @router.post("/", response_model=schemas.Order, status_code=status.HTTP_201_CREATED)
 async def create_order(
     order: schemas.OrderCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
@@ -34,6 +37,7 @@ async def create_order(
     db.add(db_order)
     db.flush()
     
+    order_items_list = []
     for item in order.items:
         menu_item = db.query(models.MenuItem).filter(
             models.MenuItem.id == item.menu_item_id
@@ -55,6 +59,13 @@ async def create_order(
             special_instructions=item.special_instructions
         )
         db.add(order_item)
+        
+        # Store for email
+        order_items_list.append({
+            'name': menu_item.name,
+            'quantity': item.quantity,
+            'price': menu_item.price
+        })
     
     db_order.total_amount = total_amount
     table.status = models.TableStatus.occupied
@@ -86,6 +97,38 @@ async def create_order(
         "special_notes": db_order.special_notes,
         "created_at": db_order.created_at.isoformat()
     })
+    
+    # Send email notification if user has email
+    if current_user.email:
+        subtotal = total_amount
+        tax = subtotal * 0.05  # 5% tax
+        total_with_tax = subtotal + tax
+        
+        # Phase 3 - Email notifications skipped
+        # background_tasks.add_task(
+        #     email_service.send_order_confirmation,
+        #     email=current_user.email,
+        #     customer_name=current_user.full_name or order.customer_name,
+        #     order_id=db_order.id,
+        #     order_details={
+        #         'items': order_items_list,
+        #         'subtotal': subtotal,
+        #         'tax': tax,
+        #         'total': total_with_tax,
+        #         'delivery_address': f"Table {db_order.table.table_number}",
+        #         'estimated_delivery': '20-30 minutes'
+        #     }
+        # )
+    
+    # Phase 3 - SMS notifications skipped
+    # if current_user.phone:
+    #     background_tasks.add_task(
+    #         sms_service.send_order_confirmation_sms,
+    #         phone_number=current_user.phone,
+    #         customer_name=current_user.full_name or order.customer_name,
+    #         order_id=db_order.id,
+    #         total_amount=total_amount
+    #     )
     
     return db_order
 
@@ -161,6 +204,7 @@ async def get_order(
 async def update_order_status(
     order_id: int,
     status_update: schemas.OrderStatusUpdate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
@@ -170,6 +214,7 @@ async def update_order_status(
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
     
+    old_status = order.status
     new_status = status_update.status
     order.status = new_status
     
@@ -248,6 +293,41 @@ async def update_order_status(
         await broadcast_order_ready(order_data)
     
     await broadcast_order_status_changed(order_data)
+    
+    # Send email/SMS notification for status change
+    order_creator = db.query(models.User).filter(models.User.id == order.created_by).first()
+    
+    if order_creator and old_status != new_status:
+        # Estimated time based on status
+        estimated_times = {
+            models.OrderStatus.preparing: '15-20 minutes',
+            models.OrderStatus.ready: 'Ready now',
+            models.OrderStatus.served: 'Enjoy your meal!',
+            models.OrderStatus.completed: None
+        }
+        
+        estimated_time = estimated_times.get(new_status)
+        
+        # Phase 3 - Email notifications skipped
+        # if order_creator.email:
+        #     background_tasks.add_task(
+        #         email_service.send_order_status_update,
+        #         email=order_creator.email,
+        #         customer_name=order_creator.full_name or order.customer_name,
+        #         order_id=order.id,
+        #         new_status=new_status.value,
+        #         estimated_time=estimated_time
+        #     )
+        
+        # Phase 3 - SMS notifications skipped
+        # if order_creator.phone:
+        #     background_tasks.add_task(
+        #         sms_service.send_order_status_sms,
+        #         phone_number=order_creator.phone,
+        #         customer_name=order_creator.full_name or order.customer_name,
+        #         order_id=order.id,
+        #         new_status=new_status.value
+        #     )
     
     return order
 

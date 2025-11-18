@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Low Stock Alert</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        .container {
+            background-color: #ffffff;
+            border-radius: 10px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .header {
+            background-color: #fef2f2;
+            border-left: 4px solid #ef4444;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 25px;
+        }
+        .header h1 {
+            color: #dc2626;
+            margin: 0 0 10px 0;
+            font-size: 24px;
+        }
+        .alert-item {
+            background-color: #fff7ed;
+            border: 2px solid #fed7aa;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+        }
+        .alert-item.critical {
+            background-color: #fef2f2;
+            border-color: #fecaca;
+        }
+        .item-name {
+            font-size: 18px;
+            font-weight: bold;
+            color: #1f2937;
+            margin-bottom: 8px;
+        }
+        .stock-info {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .stock-detail {
+            text-align: center;
+            padding: 8px;
+            background-color: white;
+            border-radius: 6px;
+        }
+        .stock-label {
+            font-size: 12px;
+            color: #6b7280;
+            margin-bottom: 3px;
+        }
+        .stock-value {
+            font-size: 16px;
+            font-weight: bold;
+        }
+        .timestamp {
+            text-align: center;
+            color: #6b7280;
+            font-size: 14px;
+            margin-top: 25px;
+            padding-top: 20px;
+            border-top: 1px solid #e5e7eb;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>⚠️ Low Stock Alert</h1>
+            <p style="margin: 0;">Immediate attention required for the following inventory items:</p>
+        </div>
+
+        {% for alert in alerts %}
+        <div class="alert-item {% if alert.current_quantity == 0 %}critical{% endif %}">
+            <div class="item-name">
+                {% if alert.current_quantity == 0 %}🔴{% else %}🟠{% endif %}
+                {{ alert.item_name }}
+            </div>
+            <div style="color: #6b7280; margin-bottom: 10px;">
+                Category: {{ alert.category }} | Unit: {{ alert.unit }}
+            </div>
+            <div class="stock-info">
+                <div class="stock-detail">
+                    <div class="stock-label">Current Stock</div>
+                    <div class="stock-value" style="color: {% if alert.current_quantity == 0 %}#dc2626{% else %}#f59e0b{% endif %};">
+                        {{ alert.current_quantity }}
+                    </div>
+                </div>
+                <div class="stock-detail">
+                    <div class="stock-label">Minimum Required</div>
+                    <div class="stock-value" style="color: #6b7280;">
+                        {{ alert.min_quantity }}
+                    </div>
+                </div>
+                <div class="stock-detail">
+                    <div class="stock-label">Shortage</div>
+                    <div class="stock-value" style="color: #dc2626;">
+                        {{ alert.min_quantity - alert.current_quantity }}
+                    </div>
+                </div>
+            </div>
+            {% if alert.supplier_name %}
+            <div style="margin-top: 10px; font-size: 14px; color: #4b5563;">
+                📞 Supplier: {{ alert.supplier_name }}
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+
+        <div style="background-color: #eff6ff; padding: 15px; border-radius: 8px; margin-top: 25px;">
+            <strong>🎯 Recommended Actions:</strong>
+            <ul style="margin: 10px 0; padding-left: 20px; color: #4b5563;">
+                <li>Create purchase orders for critical items immediately</li>
+                <li>Contact suppliers to confirm delivery timelines</li>
+                <li>Consider alternative menu items if ingredients unavailable</li>
+                <li>Update inventory tracking in the system</li>
+            </ul>
+        </div>
+
+        <div class="timestamp">
+            <p>Alert generated at: {{ timestamp }}</p>
+            <p>This is an automated alert from the Inventory Management System</p>
+        </div>
+    </div>
+</body>
+</html>

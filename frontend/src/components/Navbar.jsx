@@ -2,7 +2,7 @@ import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useTranslation } from 'react-i18next';
-import LanguageSwitcher from './common/LanguageSwitcher';
+import LanguageSelector from './common/LanguageSelector';
 
 const Navbar = () => {
   const { user, logout } = useAuth();
@@ -43,7 +43,7 @@ const Navbar = () => {
                 </Link>
                 
                 <div className="hidden sm:block">
-                  <LanguageSwitcher />
+                  <LanguageSelector />
                 </div>
                 
                 <div className="flex items-center space-x-2 sm:space-x-4 border-l pl-2 sm:pl-6">

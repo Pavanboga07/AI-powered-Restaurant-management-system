@@ -65,11 +65,51 @@ def get_staff_order_stats(db: Session, staff_id: Optional[int] = None):
         models.Order.status == models.OrderStatus.pending
     ).scalar() or 0
     
+    # Preparing orders
+    preparing_orders = db.query(func.count(models.Order.id)).filter(
+        models.Order.status == models.OrderStatus.preparing
+    ).scalar() or 0
+    
+    # Ready orders
+    ready_orders = db.query(func.count(models.Order.id)).filter(
+        models.Order.status == models.OrderStatus.ready
+    ).scalar() or 0
+    
+    # Served orders
+    served_orders = db.query(func.count(models.Order.id)).filter(
+        models.Order.status == models.OrderStatus.served
+    ).scalar() or 0
+    
+    # My tables orders (if staff_id provided)
+    my_tables_orders = 0
+    if staff_id:
+        my_tables_orders = db.query(func.count(models.Order.id)).filter(
+            models.Order.created_by == staff_id,
+            models.Order.status.in_(active_statuses)
+        ).scalar() or 0
+    
+    # Average service time (in minutes)
+    avg_time = db.query(
+        func.avg(
+            func.julianday(models.Order.completed_at) - func.julianday(models.Order.created_at)
+        ) * 24 * 60
+    ).filter(
+        and_(
+            func.date(models.Order.created_at) == today,
+            models.Order.status == models.OrderStatus.completed,
+            models.Order.completed_at.isnot(None)
+        )
+    ).scalar()
+    average_service_time = round(avg_time, 2) if avg_time else 0.0
+    
     return {
-        "active_orders": active_orders,
-        "todays_orders": todays_orders,
-        "completed_today": completed_today,
-        "pending_orders": pending_orders
+        "total_orders": todays_orders,
+        "pending_orders": pending_orders,
+        "preparing_orders": preparing_orders,
+        "ready_orders": ready_orders,
+        "served_orders": served_orders,
+        "my_tables_orders": my_tables_orders,
+        "average_service_time": average_service_time
     }
 
 

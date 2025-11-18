@@ -40,60 +40,96 @@ def get_chef_order_stats(db: Session):
     """Get chef's order statistics for today"""
     today = date.today()
     
-    # Active orders count
-    active_orders = db.query(models.Order).filter(
-        models.Order.status.in_([
-            models.OrderStatus.pending,
-            models.OrderStatus.preparing,
-            models.OrderStatus.ready
-        ])
-    ).count()
-    
-    # Orders prepared today
-    orders_prepared_today = db.query(models.Order).filter(
+    # Count orders by status for today
+    pending_orders = db.query(models.Order).filter(
         and_(
             func.date(models.Order.created_at) == today,
-            models.Order.status.in_([
-                models.OrderStatus.ready,
-                models.OrderStatus.served,
-                models.OrderStatus.completed
-            ])
+            models.Order.status == models.OrderStatus.pending
         )
     ).count()
     
-    # Average prep time
+    confirmed_orders = db.query(models.Order).filter(
+        and_(
+            func.date(models.Order.created_at) == today,
+            models.Order.status == models.OrderStatus.confirmed
+        )
+    ).count()
+    
+    preparing_orders = db.query(models.Order).filter(
+        and_(
+            func.date(models.Order.created_at) == today,
+            models.Order.status == models.OrderStatus.preparing
+        )
+    ).count()
+    
+    ready_orders = db.query(models.Order).filter(
+        and_(
+            func.date(models.Order.created_at) == today,
+            models.Order.status == models.OrderStatus.ready
+        )
+    ).count()
+    
+    served_orders = db.query(models.Order).filter(
+        and_(
+            func.date(models.Order.created_at) == today,
+            models.Order.status == models.OrderStatus.served
+        )
+    ).count()
+    
     completed_orders = db.query(models.Order).filter(
         and_(
             func.date(models.Order.created_at) == today,
-            models.Order.started_at.isnot(None),
-            models.Order.completed_at.isnot(None)
+            models.Order.status == models.OrderStatus.completed
         )
-    ).all()
+    ).count()
     
-    avg_prep_time = 0.0
-    if completed_orders:
-        total_time = sum([
-            (order.completed_at - order.started_at).total_seconds() / 60
-            for order in completed_orders
-        ])
-        avg_prep_time = total_time / len(completed_orders)
+    cancelled_orders = db.query(models.Order).filter(
+        and_(
+            func.date(models.Order.created_at) == today,
+            models.Order.status == models.OrderStatus.cancelled
+        )
+    ).count()
     
-    # Orders by status
-    orders_by_status = {}
-    for status in [models.OrderStatus.pending, models.OrderStatus.preparing, models.OrderStatus.ready]:
-        count = db.query(models.Order).filter(
-            and_(
-                models.Order.status == status,
-                func.date(models.Order.created_at) == today
-            )
-        ).count()
-        orders_by_status[status.value] = count
+    # Total orders for today
+    total_orders = pending_orders + confirmed_orders + preparing_orders + ready_orders + served_orders + completed_orders + cancelled_orders
+    
+    # Calculate revenue from completed orders with paid bills
+    total_revenue_result = db.query(func.sum(models.Bill.total)).join(
+        models.Order, models.Bill.order_id == models.Order.id
+    ).filter(
+        and_(
+            func.date(models.Order.created_at) == today,
+            models.Bill.payment_status == models.PaymentStatus.paid
+        )
+    ).scalar()
+    
+    total_revenue = float(total_revenue_result) if total_revenue_result else 0.0
+    
+    # Calculate average order value
+    average_order_value = 0.0
+    if total_orders > 0:
+        # Get all order totals for today
+        order_totals = db.query(models.Bill.total).join(
+            models.Order, models.Bill.order_id == models.Order.id
+        ).filter(
+            func.date(models.Order.created_at) == today
+        ).all()
+        
+        if order_totals:
+            total_sum = sum([total[0] for total in order_totals if total[0]])
+            average_order_value = total_sum / len(order_totals) if order_totals else 0.0
     
     return {
-        "active_orders": active_orders,
-        "orders_prepared_today": orders_prepared_today,
-        "avg_prep_time": round(avg_prep_time, 2),
-        "orders_by_status": orders_by_status
+        "total_orders": total_orders,
+        "pending_orders": pending_orders,
+        "confirmed_orders": confirmed_orders,
+        "preparing_orders": preparing_orders,
+        "ready_orders": ready_orders,
+        "served_orders": served_orders,
+        "completed_orders": completed_orders,
+        "cancelled_orders": cancelled_orders,
+        "total_revenue": round(total_revenue, 2),
+        "average_order_value": round(average_order_value, 2)
     }
 
 # ============ Menu Item Control ============

@@ -23,10 +23,12 @@ import {
   CreditCard
 } from 'lucide-react';
 import { Link, Routes, Route, useLocation, NavLink, useNavigate } from 'react-router-dom';
-import { useWebSocket } from '../../contexts/WebSocketContext';
+import { useWebSocket } from '../../hooks/useWebSocket';
+import { useNotifications } from '../../contexts/NotificationContext';
+import NotificationBell from '../shared/NotificationBell';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../contexts/AuthContext';
-import { menuAPI, ordersAPI, tablesAPI, staffAPI, billingAPI } from '../../services/api';
+import { menuAPI, ordersAPI, tablesAPI, staffAPI, billingAPI, inventoryAPI } from '../../services/api';
 
 /**
  * Staff Dashboard - Multi-page navigation
@@ -38,11 +40,67 @@ const StaffDashboard = () => {
   const { t } = useTranslation();
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  
+  // WebSocket integration for real-time updates
+  const { socket, isConnected, lastMessage } = useWebSocket('staff', user);
+  const { addNotification } = useNotifications();
 
   const handleLogout = () => {
     logout();
     navigate('/login');
   };
+
+  // Handle incoming WebSocket messages for staff
+  useEffect(() => {
+    if (lastMessage) {
+      console.log('👔 Staff Dashboard received message:', lastMessage.type);
+      
+      switch (lastMessage.type) {
+        case 'new_order':
+          addNotification({
+            type: 'info',
+            title: 'New Order',
+            message: `Order #${lastMessage.data.order_id} placed`
+          });
+          break;
+          
+        case 'order_status_changed':
+          addNotification({
+            type: 'success',
+            title: 'Order Updated',
+            message: `Order #${lastMessage.data.order_id} status: ${lastMessage.data.new_status}`
+          });
+          break;
+          
+        case 'table_status_changed':
+          addNotification({
+            type: 'info',
+            title: 'Table Update',
+            message: `Table ${lastMessage.data.table_number}: ${lastMessage.data.new_status}`
+          });
+          break;
+          
+        case 'reservation_update':
+          addNotification({
+            type: 'info',
+            title: 'Reservation Update',
+            message: `Reservation #${lastMessage.data.reservation_id} updated`
+          });
+          break;
+          
+        case 'custom_notification':
+          addNotification({
+            type: 'info',
+            title: lastMessage.data.title || 'Notification',
+            message: lastMessage.data.message || 'New notification'
+          });
+          break;
+          
+        default:
+          console.log('Unhandled message type:', lastMessage.type);
+      }
+    }
+  }, [lastMessage, addNotification]);
 
   const navItems = [
     { path: '', label: t('nav.home'), icon: Home },
@@ -66,13 +124,25 @@ const StaffDashboard = () => {
       <aside className={`${isSidebarOpen ? 'w-64' : 'w-20'} bg-white border-r border-slate-200 transition-all duration-300 fixed h-full z-50 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
         <div className="p-4 sm:p-6 relative h-full pb-32">
           <div className="flex items-center justify-between mb-6 sm:mb-8">
-            {isSidebarOpen && <h2 className="text-lg sm:text-xl font-bold text-slate-800">{t('staff.title')}</h2>}
-            <button
-              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-              className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
-            >
-              <Users className="text-blue-600" size={20} />
-            </button>
+            {isSidebarOpen && (
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg sm:text-xl font-bold text-slate-800">{t('staff.title')}</h2>
+                {isConnected && (
+                  <div className="flex items-center gap-1 text-green-600 text-xs">
+                    <div className="w-2 h-2 bg-green-600 rounded-full animate-pulse"></div>
+                  </div>
+                )}
+              </div>
+            )}
+            <div className="flex items-center gap-2">
+              <NotificationBell />
+              <button
+                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+              >
+                <Users className="text-blue-600" size={20} />
+              </button>
+            </div>
           </div>
 
           <nav className="space-y-2">
@@ -1594,7 +1664,9 @@ const OrdersPage = () => {
   const [loading, setLoading] = useState(true);
   const [paymentModalOrder, setPaymentModalOrder] = useState(null);
   const [receiptModalOrder, setReceiptModalOrder] = useState(null);
-  const { subscribe, unsubscribe, addToast } = useWebSocket();
+  const { user } = useAuth();
+  const { socket, isConnected, lastMessage } = useWebSocket('staff', user);
+  const { addNotification } = useNotifications();
 
   // Fetch orders
   const fetchOrders = async () => {
@@ -1618,51 +1690,37 @@ const OrdersPage = () => {
 
   // WebSocket listeners for real-time updates
   useEffect(() => {
-    // Listen for new orders
-    const handleNewOrder = (data) => {
-      console.log('New order via WebSocket:', data);
-      fetchOrders(); // Refresh orders list
-    };
+    if (!lastMessage) return;
 
-    // Listen for order ready events
-    const handleOrderReady = (data) => {
-      console.log('Order ready via WebSocket:', data);
-      fetchOrders();
+    console.log('OrdersPage received WebSocket message:', lastMessage.type);
+
+    switch (lastMessage.type) {
+      case 'new_order':
+        fetchOrders();
+        break;
       
-      // Show notification to staff
-      addToast({
-        type: 'success',
-        message: `🍽️ Order #${data.id} for Table ${data.table_number} is ready to serve!`,
-      });
+      case 'order_status_changed':
+        fetchOrders();
+        if (lastMessage.data.new_status === 'ready') {
+          addNotification({
+            type: 'success',
+            title: 'Order Ready',
+            message: `🍽️ Order #${lastMessage.data.order_id} is ready to serve!`
+          });
+          // Play notification sound
+          const audio = new Audio('/notification.mp3');
+          audio.play().catch(e => console.log('Audio play failed:', e));
+        }
+        break;
       
-      // Play notification sound
-      const audio = new Audio('/notification.mp3');
-      audio.play().catch(e => console.log('Audio play failed:', e));
-    };
-
-    // Listen for order status changes
-    const handleOrderStatusChange = (data) => {
-      console.log('Order status changed via WebSocket:', data);
-      fetchOrders();
-    };
-
-    // Listen for table updates
-    const handleTableUpdate = (data) => {
-      console.log('Table updated via WebSocket:', data);
-    };
-
-    subscribe('new_order', handleNewOrder);
-    subscribe('order_ready', handleOrderReady);
-    subscribe('order_status_changed', handleOrderStatusChange);
-    subscribe('table_updated', handleTableUpdate);
-
-    return () => {
-      unsubscribe('new_order', handleNewOrder);
-      unsubscribe('order_ready', handleOrderReady);
-      unsubscribe('order_status_changed', handleOrderStatusChange);
-      unsubscribe('table_updated', handleTableUpdate);
-    };
-  }, [subscribe, unsubscribe]);
+      case 'table_status_changed':
+        console.log('Table updated via WebSocket:', lastMessage.data);
+        break;
+      
+      default:
+        break;
+    }
+  }, [lastMessage]);
 
   // Filter orders
   const filteredOrders = orders.filter(order => {
@@ -1786,14 +1844,16 @@ const OrdersPage = () => {
                             try {
                               await ordersAPI.updateStatus(order.id, 'served');
                               fetchOrders();
-                              addToast({
+                              addNotification({
                                 type: 'success',
+                                title: 'Order Served',
                                 message: `Order #${order.id} marked as served! Bill generated.`
                               });
                             } catch (error) {
                               console.error('Error updating order:', error);
-                              addToast({
+                              addNotification({
                                 type: 'error',
+                                title: 'Error',
                                 message: 'Failed to update order status'
                               });
                             }
@@ -1866,7 +1926,8 @@ const TablesPage = () => {
   const [tables, setTables] = useState([]);
   const [loading, setLoading] = useState(true);
   const [cleaningTimers, setCleaningTimers] = useState({});
-  const { subscribe, unsubscribe, addToast } = useWebSocket();
+  const { user } = useAuth();
+  const { addNotification } = useNotifications();
 
   const fetchTables = async () => {
     setLoading(true);
@@ -1882,32 +1943,7 @@ const TablesPage = () => {
 
   useEffect(() => {
     fetchTables();
-
-    // WebSocket listener for table updates
-    const handleTableUpdate = (data) => {
-      console.log('Table updated via WebSocket:', data);
-      fetchTables();
-      
-      // Show notification for cleaning events
-      if (data.notification_type === 'cleaning_required') {
-        addToast({
-          type: 'info',
-          message: `🧹 ${data.message} - Cleaners notified!`
-        });
-      } else if (data.notification_type === 'cleaning_completed') {
-        addToast({
-          type: 'success',
-          message: `✅ ${data.message}`
-        });
-      }
-    };
-
-    subscribe('table_updated', handleTableUpdate);
-
-    return () => {
-      unsubscribe('table_updated', handleTableUpdate);
-    };
-  }, [subscribe, unsubscribe, addToast]);
+  }, []);
 
   // Auto-complete cleaning after 2 minutes
   useEffect(() => {
@@ -1952,15 +1988,17 @@ const TablesPage = () => {
   const markTableForCleaning = async (tableId) => {
     try {
       await tablesAPI.markForCleaning(tableId);
-      addToast({
+      addNotification({
         type: 'success',
+        title: 'Cleaning Scheduled',
         message: '🧹 Table marked for cleaning. Will be available in 2 minutes.'
       });
       fetchTables();
     } catch (error) {
       console.error('Error marking table for cleaning:', error);
-      addToast({
+      addNotification({
         type: 'error',
+        title: 'Error',
         message: error.response?.data?.detail || 'Failed to mark table for cleaning'
       });
     }
@@ -2086,12 +2124,39 @@ const TablesPage = () => {
  * @component
  */
 const InventoryPage = () => {
-  const inventory = [
-    { name: 'Salmon', category: 'Seafood', quantity: 15, unit: 'portions', status: 'good' },
-    { name: 'Chicken Breast', category: 'Poultry', quantity: 25, unit: 'pieces', status: 'good' },
-    { name: 'Fresh Basil', category: 'Herbs', quantity: 2, unit: 'bunches', status: 'low' },
-    { name: 'Tomatoes', category: 'Vegetables', quantity: 30, unit: 'kg', status: 'good' }
-  ];
+  const [inventory, setInventory] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const fetchInventory = async () => {
+      try {
+        setLoading(true);
+        const data = await inventoryAPI.getAll();
+        setInventory(data);
+        setError(null);
+      } catch (err) {
+        console.error('Error fetching inventory:', err);
+        setError(err.response?.data?.detail || err.message || 'Failed to load inventory');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchInventory();
+  }, []);
+
+  const getStatusInfo = (item) => {
+    if (!item.current_quantity || !item.reorder_level) {
+      return { status: 'good', color: 'bg-green-100 text-green-700' };
+    }
+    if (item.current_quantity <= item.reorder_level) {
+      return { status: 'low', color: 'bg-red-100 text-red-700' };
+    }
+    if (item.current_quantity <= item.reorder_level * 1.5) {
+      return { status: 'medium', color: 'bg-yellow-100 text-yellow-700' };
+    }
+    return { status: 'good', color: 'bg-green-100 text-green-700' };
+  };
 
   return (
     <motion.div
@@ -2105,34 +2170,61 @@ const InventoryPage = () => {
         <p className="text-slate-600">Monitor stock levels and supplies</p>
       </div>
 
-      <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
-        <table className="w-full">
-          <thead className="bg-slate-50 border-b border-slate-200">
-            <tr>
-              <th className="text-left px-6 py-4 text-slate-700 font-semibold">Item</th>
-              <th className="text-left px-6 py-4 text-slate-700 font-semibold">Category</th>
-              <th className="text-left px-6 py-4 text-slate-700 font-semibold">Quantity</th>
-              <th className="text-left px-6 py-4 text-slate-700 font-semibold">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {inventory.map((item, index) => (
-              <tr key={index} className="border-b border-slate-100 hover:bg-slate-50">
-                <td className="px-6 py-4 text-slate-800 font-medium">{item.name}</td>
-                <td className="px-6 py-4 text-slate-700">{item.category}</td>
-                <td className="px-6 py-4 text-slate-700">{item.quantity} {item.unit}</td>
-                <td className="px-6 py-4">
-                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                    item.status === 'low' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
-                  }`}>
-                    {item.status}
-                  </span>
-                </td>
+      {loading ? (
+        <div className="text-center py-12">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent"></div>
+          <p className="mt-4 text-slate-600">Loading inventory...</p>
+        </div>
+      ) : error ? (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
+          <p className="font-semibold">Error loading inventory</p>
+          <p className="text-sm">{error}</p>
+        </div>
+      ) : (
+        <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
+          <table className="w-full">
+            <thead className="bg-slate-50 border-b border-slate-200">
+              <tr>
+                <th className="text-left px-6 py-4 text-slate-700 font-semibold">Item</th>
+                <th className="text-left px-6 py-4 text-slate-700 font-semibold">Category</th>
+                <th className="text-left px-6 py-4 text-slate-700 font-semibold">Quantity</th>
+                <th className="text-left px-6 py-4 text-slate-700 font-semibold">Reorder Level</th>
+                <th className="text-left px-6 py-4 text-slate-700 font-semibold">Status</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {inventory.length === 0 ? (
+                <tr>
+                  <td colSpan="5" className="px-6 py-8 text-center text-slate-500">
+                    No inventory items found
+                  </td>
+                </tr>
+              ) : (
+                inventory.map((item) => {
+                  const statusInfo = getStatusInfo(item);
+                  return (
+                    <tr key={item.id} className="border-b border-slate-100 hover:bg-slate-50">
+                      <td className="px-6 py-4 text-slate-800 font-medium">{item.name}</td>
+                      <td className="px-6 py-4 text-slate-700">{item.category}</td>
+                      <td className="px-6 py-4 text-slate-700">
+                        {item.current_quantity || 0} {item.unit}
+                      </td>
+                      <td className="px-6 py-4 text-slate-700">
+                        {item.reorder_level || 'N/A'} {item.unit}
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`px-3 py-1 rounded-full text-sm font-medium ${statusInfo.color}`}>
+                          {statusInfo.status}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
     </motion.div>
   );
 };
@@ -2142,11 +2234,49 @@ const InventoryPage = () => {
  * @component
  */
 const ReservationsPage = () => {
-  const reservations = [
-    { id: 1, name: 'John Doe', guests: 4, time: '6:30 PM', status: 'confirmed' },
-    { id: 2, name: 'Jane Smith', guests: 2, time: '7:00 PM', status: 'pending' },
-    { id: 3, name: 'Bob Johnson', guests: 6, time: '8:00 PM', status: 'confirmed' }
-  ];
+  const [reservations, setReservations] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const fetchReservations = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch('http://localhost:8000/api/reservations/');
+        if (!response.ok) throw new Error('Failed to fetch reservations');
+        const data = await response.json();
+        setReservations(data);
+      } catch (err) {
+        console.error('Error fetching reservations:', err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchReservations();
+  }, []);
+
+  const formatDateTime = (dateStr, timeStr) => {
+    if (!dateStr) return 'N/A';
+    const date = new Date(dateStr);
+    const dateFormatted = date.toLocaleDateString();
+    return timeStr ? `${dateFormatted} ${timeStr}` : dateFormatted;
+  };
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'confirmed':
+        return 'bg-green-100 text-green-700';
+      case 'pending':
+        return 'bg-yellow-100 text-yellow-700';
+      case 'cancelled':
+        return 'bg-red-100 text-red-700';
+      case 'completed':
+        return 'bg-blue-100 text-blue-700';
+      default:
+        return 'bg-gray-100 text-gray-700';
+    }
+  };
 
   return (
     <motion.div
@@ -2160,34 +2290,62 @@ const ReservationsPage = () => {
         <p className="text-slate-600">Manage table reservations</p>
       </div>
 
-      <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
-        <table className="w-full">
-          <thead className="bg-slate-50 border-b border-slate-200">
-            <tr>
-              <th className="text-left px-6 py-4 text-slate-700 font-semibold">Guest Name</th>
-              <th className="text-left px-6 py-4 text-slate-700 font-semibold">Party Size</th>
-              <th className="text-left px-6 py-4 text-slate-700 font-semibold">Time</th>
-              <th className="text-left px-6 py-4 text-slate-700 font-semibold">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {reservations.map((reservation) => (
-              <tr key={reservation.id} className="border-b border-slate-100 hover:bg-slate-50">
-                <td className="px-6 py-4 text-slate-800 font-medium">{reservation.name}</td>
-                <td className="px-6 py-4 text-slate-700">{reservation.guests} guests</td>
-                <td className="px-6 py-4 text-slate-700">{reservation.time}</td>
-                <td className="px-6 py-4">
-                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                    reservation.status === 'confirmed' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
-                  }`}>
-                    {reservation.status}
-                  </span>
-                </td>
+      {loading ? (
+        <div className="text-center py-12">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent"></div>
+          <p className="mt-4 text-slate-600">Loading reservations...</p>
+        </div>
+      ) : error ? (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
+          <p className="font-semibold">Error loading reservations</p>
+          <p className="text-sm">{error}</p>
+        </div>
+      ) : (
+        <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
+          <table className="w-full">
+            <thead className="bg-slate-50 border-b border-slate-200">
+              <tr>
+                <th className="text-left px-6 py-4 text-slate-700 font-semibold">Guest Name</th>
+                <th className="text-left px-6 py-4 text-slate-700 font-semibold">Contact</th>
+                <th className="text-left px-6 py-4 text-slate-700 font-semibold">Party Size</th>
+                <th className="text-left px-6 py-4 text-slate-700 font-semibold">Date & Time</th>
+                <th className="text-left px-6 py-4 text-slate-700 font-semibold">Table</th>
+                <th className="text-left px-6 py-4 text-slate-700 font-semibold">Status</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {reservations.length === 0 ? (
+                <tr>
+                  <td colSpan="6" className="px-6 py-8 text-center text-slate-500">
+                    No reservations found
+                  </td>
+                </tr>
+              ) : (
+                reservations.map((reservation) => (
+                  <tr key={reservation.id} className="border-b border-slate-100 hover:bg-slate-50">
+                    <td className="px-6 py-4 text-slate-800 font-medium">{reservation.customer_name}</td>
+                    <td className="px-6 py-4 text-slate-700 text-sm">
+                      {reservation.customer_phone || reservation.customer_email || 'N/A'}
+                    </td>
+                    <td className="px-6 py-4 text-slate-700">{reservation.party_size} guests</td>
+                    <td className="px-6 py-4 text-slate-700">
+                      {formatDateTime(reservation.reservation_date, reservation.reservation_time)}
+                    </td>
+                    <td className="px-6 py-4 text-slate-700">
+                      {reservation.table?.table_number || 'Not assigned'}
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(reservation.status)}`}>
+                        {reservation.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
     </motion.div>
   );
 };

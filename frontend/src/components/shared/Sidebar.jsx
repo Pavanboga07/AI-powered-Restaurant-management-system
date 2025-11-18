@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import NotificationBell from './NotificationBell';
 import {
   BarChart3,
   UtensilsCrossed,
@@ -14,6 +15,8 @@ import {
   Star,
   Calendar,
   Users,
+  Package,
+  Mail,
   LogOut,
   Menu,
   X,
@@ -53,6 +56,8 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     { path: '/manager/tables', icon: LayoutGrid, label: 'Tables' },
     { path: '/manager/orders', icon: ShoppingCart, label: 'Orders' },
     { path: '/manager/billing', icon: Receipt, label: 'Billing' },
+    { path: '/manager/inventory', icon: Package, label: 'Inventory' },
+    { path: '/manager/campaigns', icon: Mail, label: 'Campaigns' },
     { path: '/manager/qr-codes', icon: QrCode, label: 'QR Codes' },
     { path: '/manager/reports', icon: FileText, label: 'Reports' },
     { path: '/manager/advanced-analytics', icon: TrendingUp, label: 'Advanced Analytics' },
@@ -110,12 +115,15 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
               <h1 className="text-2xl font-bold text-white flex items-center gap-2">
                 🍽️ <span className="text-primary-500">RestaurantOS</span>
               </h1>
-              <button
-                onClick={toggleSidebar}
-                className="lg:hidden text-slate-400 hover:text-white transition-colors"
-              >
-                <X size={24} />
-              </button>
+              <div className="flex items-center gap-2">
+                <NotificationBell />
+                <button
+                  onClick={toggleSidebar}
+                  className="lg:hidden text-slate-400 hover:text-white transition-colors"
+                >
+                  <X size={24} />
+                </button>
+              </div>
             </div>
 
             {/* User Info */}

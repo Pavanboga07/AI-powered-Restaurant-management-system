@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Order Confirmation</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        .container {
+            background-color: #ffffff;
+            border-radius: 10px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            border-bottom: 3px solid #7c3aed;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+        .header h1 {
+            color: #7c3aed;
+            margin: 0;
+        }
+        .order-id {
+            background-color: #f3f4f6;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 20px;
+        }
+        .section {
+            margin-bottom: 25px;
+        }
+        .section-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #7c3aed;
+            margin-bottom: 10px;
+        }
+        .item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .item:last-child {
+            border-bottom: none;
+        }
+        .item-name {
+            flex: 1;
+        }
+        .item-quantity {
+            margin: 0 15px;
+            color: #6b7280;
+        }
+        .item-price {
+            font-weight: bold;
+        }
+        .total-section {
+            background-color: #f9fafb;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+        .total-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+        }
+        .total-row.grand-total {
+            font-size: 20px;
+            font-weight: bold;
+            color: #7c3aed;
+            border-top: 2px solid #7c3aed;
+            padding-top: 15px;
+            margin-top: 10px;
+        }
+        .delivery-info {
+            background-color: #eff6ff;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #3b82f6;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #e5e7eb;
+            color: #6b7280;
+            font-size: 14px;
+        }
+        .button {
+            display: inline-block;
+            background-color: #7c3aed;
+            color: #ffffff !important;
+            text-decoration: none;
+            padding: 12px 30px;
+            border-radius: 6px;
+            margin: 20px 0;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🍽️ Order Confirmed!</h1>
+            <p>Thank you for your order, {{ customer_name }}!</p>
+        </div>
+
+        <div class="order-id">
+            Order #{{ order_id }}
+        </div>
+
+        <div class="section">
+            <div class="section-title">📅 Order Details</div>
+            <p><strong>Order Date:</strong> {{ order_date }}</p>
+            <p><strong>Estimated Delivery:</strong> {{ estimated_delivery }}</p>
+        </div>
+
+        <div class="section">
+            <div class="section-title">🛒 Your Items</div>
+            {% for item in items %}
+            <div class="item">
+                <div class="item-name">{{ item.name }}</div>
+                <div class="item-quantity">x{{ item.quantity }}</div>
+                <div class="item-price">₹{{ "%.2f"|format(item.price * item.quantity) }}</div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="total-section">
+            <div class="total-row">
+                <span>Subtotal:</span>
+                <span>₹{{ "%.2f"|format(subtotal) }}</span>
+            </div>
+            <div class="total-row">
+                <span>Tax & Fees:</span>
+                <span>₹{{ "%.2f"|format(tax) }}</span>
+            </div>
+            <div class="total-row grand-total">
+                <span>Total:</span>
+                <span>₹{{ "%.2f"|format(total) }}</span>
+            </div>
+        </div>
+
+        {% if delivery_address and delivery_address != 'N/A' %}
+        <div class="section">
+            <div class="delivery-info">
+                <div class="section-title">📍 Delivery Address</div>
+                <p>{{ delivery_address }}</p>
+            </div>
+        </div>
+        {% endif %}
+
+        <div style="text-align: center;">
+            <a href="http://localhost:5173/customer/orders" class="button">Track Your Order</a>
+        </div>
+
+        <div class="footer">
+            <p>Questions? Contact us at support@restaurant.com or call +91-XXXX-XXXXXX</p>
+            <p>&copy; 2025 Your Restaurant. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>

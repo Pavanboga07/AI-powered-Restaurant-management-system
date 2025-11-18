@@ -16,7 +16,8 @@ sys.path.insert(0, str(backend_dir))
 from app.database import engine, Base
 from app.models import (
     User, MenuItem, Order, OrderItem, Table, Reservation, Bill, Coupon, Review, Shift,
-    Customer, Favorite, Message, ShiftHandover, ServiceRequest  # New models
+    Customer, Favorite, Message, ShiftHandover, ServiceRequest,
+    Supplier, InventoryItem, InventoryTransaction, MenuItemRecipe, PurchaseOrder, PurchaseOrderItem  # Phase 2
 )
 
 
@@ -45,6 +46,12 @@ def create_tables():
         print("- messages (NEW)")
         print("- shift_handovers (NEW)")
         print("- service_requests (NEW - Phase 2)")
+        print("- suppliers (NEW - Phase 2 Inventory)")
+        print("- inventory_items (NEW - Phase 2 Inventory)")
+        print("- inventory_transactions (NEW - Phase 2 Inventory)")
+        print("- menu_item_recipes (NEW - Phase 2 Inventory)")
+        print("- purchase_orders (NEW - Phase 2 Inventory)")
+        print("- purchase_order_items (NEW - Phase 2 Inventory)")
         
     except Exception as e:
         print(f"❌ Error creating tables: {e}")

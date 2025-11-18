@@ -297,9 +297,9 @@ def create_customer_profile(db: Session, user_id: int, profile_data: schemas.Cus
     """Create customer profile"""
     customer = models.Customer(
         user_id=user_id,
-        phone=profile_data.phone,
-        address=profile_data.address,
-        preferences=profile_data.preferences
+        phone=profile_data.phone if profile_data.phone else None,
+        address=profile_data.address if profile_data.address else None,
+        loyalty_points=profile_data.loyalty_points if hasattr(profile_data, 'loyalty_points') else 0
     )
     db.add(customer)
     db.commit()
@@ -343,13 +343,13 @@ def get_customer_stats(db: Session, customer_id: int):
     
     # Count orders
     order_count = db.query(func.count(models.Order.id)).filter(
-        models.Order.customer_email == user.email
+        models.Order.customer_id == customer_id
     ).scalar() or 0
     
     # Sum total spent
     total_spent = db.query(func.sum(models.Order.total_amount)).filter(
         and_(
-            models.Order.customer_email == user.email,
+            models.Order.customer_id == customer_id,
             models.Order.status == models.OrderStatus.completed
         )
     ).scalar() or 0

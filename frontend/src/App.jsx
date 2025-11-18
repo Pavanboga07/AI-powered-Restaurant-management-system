@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
+import { NotificationProvider } from './contexts/NotificationContext';
 import { WebSocketProvider } from './contexts/WebSocketContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Navbar from './components/Navbar';
@@ -21,17 +22,26 @@ import QRMenuView from './components/customer/QRMenuView';
 import ConnectionStatus from './components/common/ConnectionStatus';
 import Toast from './components/common/Toast';
 import NotificationsPanel from './components/common/NotificationsPanel';
+// Phase 4 Components
+import CustomerProfile from './pages/CustomerProfile';
+import LoyaltyDashboard from './pages/LoyaltyDashboard';
+import RecurringReservations from './pages/RecurringReservations';
+// Phase 5 Components
+import KitchenDisplay from './components/kitchen/KitchenDisplay';
+// Phase 6 Components
+import AnalyticsDashboard from './pages/AnalyticsDashboard';
 import './i18n'; // Initialize i18n
 
 function App() {
   return (
     <Router>
       <AuthProvider>
-        <WebSocketProvider>
-          <ConnectionStatus />
-          <Toast />
-          <NotificationsPanel />
-          <Routes>
+        <NotificationProvider>
+          <WebSocketProvider>
+            <ConnectionStatus />
+            <Toast />
+            <NotificationsPanel />
+            <Routes>
             {/* Root redirect - redirect to login if not authenticated */}
             <Route path="/" element={<Navigate to="/login" replace />} />
             
@@ -72,6 +82,16 @@ function App() {
             }
           />
 
+          {/* Phase 5: Kitchen Display System (New KDS) - No Navbar */}
+          <Route
+            path="/kds"
+            element={
+              <ProtectedRoute roles={['admin', 'chef']}>
+                <KitchenDisplay />
+              </ProtectedRoute>
+            }
+          />
+
           {/* Place Order Page - No Navbar (manager, staff) */}
           <Route
             path="/orders/new"
@@ -98,6 +118,42 @@ function App() {
           {/* Public Reservation Page - No auth required */}
           <Route path="/book" element={<CustomerReservation />} />
           <Route path="/reservations/new" element={<CustomerReservation />} />
+
+          {/* Phase 4: Customer Profile & Loyalty Routes */}
+          <Route
+            path="/profile"
+            element={
+              <ProtectedRoute roles={['customer']}>
+                <CustomerProfile />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/loyalty"
+            element={
+              <ProtectedRoute roles={['customer']}>
+                <LoyaltyDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/recurring-reservations"
+            element={
+              <ProtectedRoute roles={['customer']}>
+                <RecurringReservations />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Phase 6: AI/ML Analytics Dashboard */}
+          <Route
+            path="/analytics-ai"
+            element={
+              <ProtectedRoute roles={['admin', 'manager']}>
+                <AnalyticsDashboard />
+              </ProtectedRoute>
+            }
+          />
 
           {/* Protected Routes with Navbar */}
           <Route
@@ -160,6 +216,7 @@ function App() {
           />
         </Routes>
         </WebSocketProvider>
+        </NotificationProvider>
       </AuthProvider>
     </Router>
   );

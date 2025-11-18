@@ -271,12 +271,35 @@ def get_my_profile(
             "user": current_user
         }
     
-    # Get stats
-    if profile["customer"]:
-        stats = customer_crud.get_customer_stats(db, profile["customer"].id)
-        profile["stats"] = stats
+    # Convert customer model to dict for serialization
+    customer_dict = {
+        "id": profile["customer"].id,
+        "user_id": profile["customer"].user_id,
+        "phone": profile["customer"].phone,
+        "address": profile["customer"].address,
+        "total_orders": profile["customer"].total_orders,
+        "total_spent": profile["customer"].total_spent,
+        "loyalty_points": profile["customer"].loyalty_points,
+        "created_at": profile["customer"].created_at.isoformat() if profile["customer"].created_at else None,
+        "updated_at": profile["customer"].updated_at.isoformat() if profile["customer"].updated_at else None
+    }
     
-    return profile
+    # Convert user model to dict
+    user_dict = {
+        "id": profile["user"].id,
+        "username": profile["user"].username,
+        "email": profile["user"].email,
+        "role": profile["user"].role.value if hasattr(profile["user"].role, 'value') else str(profile["user"].role)
+    }
+    
+    # Get stats
+    stats = customer_crud.get_customer_stats(db, profile["customer"].id)
+    
+    return {
+        "customer": customer_dict,
+        "user": user_dict,
+        "stats": stats
+    }
 
 
 @router.put("/profile", response_model=schemas.Customer)
