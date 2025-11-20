@@ -57,7 +57,7 @@ async def create_bill(
     return bill
 
 # Get all bills
-@router.get("/", response_model=List[schemas.Bill])
+@router.get("/", response_model=List[schemas.BillWithDetails])
 async def get_bills(
     payment_status: str = None,
     skip: int = 0,
@@ -66,12 +66,21 @@ async def get_bills(
     current_user: models.User = Depends(require_role(["admin", "manager", "staff"]))
 ):
     """Get all bills with optional filters"""
-    query = db.query(models.Bill)
+    query = db.query(models.Bill).options(
+        joinedload(models.Bill.order).joinedload(models.Order.order_items).joinedload(models.OrderItem.menu_item),
+        joinedload(models.Bill.order).joinedload(models.Order.table),
+        joinedload(models.Bill.coupon)
+    )
     
     if payment_status:
         query = query.filter(models.Bill.payment_status == payment_status)
     
     bills = query.order_by(models.Bill.created_at.desc()).offset(skip).limit(limit).all()
+    
+    # Calculate amount_per_person for each bill
+    for bill in bills:
+        bill.amount_per_person = bill.total / bill.split_count
+    
     return bills
 
 # Get bill by ID

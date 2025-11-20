@@ -205,21 +205,8 @@ async def get_me(current_user: models.User = Depends(get_current_active_user)):
 @router.post("/login/json", response_model=schemas.Token)
 def login_json(login_data: schemas.LoginRequest, db: Session = Depends(get_db)):
     """Login with JSON body (alternative to form data)"""
-    print(f"🔐 Login attempt - Username: {login_data.username}")
     user = crud.get_user_by_username(db, username=login_data.username)
-    
-    if not user:
-        print(f"❌ User not found: {login_data.username}")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password"
-        )
-    
-    print(f"✓ User found: {user.username}, Role: {user.role}, Active: {user.is_active}")
-    password_valid = verify_password(login_data.password, user.hashed_password)
-    print(f"{'✓' if password_valid else '❌'} Password verification: {password_valid}")
-    
-    if not password_valid:
+    if not user or not verify_password(login_data.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password"
